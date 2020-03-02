@@ -21,19 +21,19 @@ const BUFFERS_AHEAD: u32 = 5;
 // TODO: replace attack/decay with envelopes
 // TODO: legato polyphony
 
-pub struct Synthesizer {
-    midi_input: MidiInputStream,
+pub struct Synthesizer<M> {
+    midi_input: M,
     output_device: AudioOutputDeviceStream,
     recording: Option<RecordingOutputStream>,
     notes_playing: HashMap<wmidi::Note, SynthNote>,
 }
 
-impl Synthesizer {
+impl<M: MidiInputStream> Synthesizer<M> {
     pub fn new(
-        midi_input: MidiInputStream,
+        midi_input: M,
         output_device: AudioOutputDeviceStream,
         recording: Option<RecordingOutputStream>,
-    ) -> Synthesizer {
+    ) -> Synthesizer<M> {
         Self {
             midi_input,
             output_device,
@@ -68,6 +68,7 @@ impl Synthesizer {
 
     fn handle_midi_message(&mut self, raw_message: RawMidiMessage) {
         let (_timestamp, message) = raw_message;
+        // TODO: replace with midly::Event::read
         let message = MidiMessage::try_from(&message[..]).expect("Failed to parse MIDI message.");
 
         match message {
