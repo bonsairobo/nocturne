@@ -150,7 +150,7 @@ impl Synthesizer {
     }
 
     pub fn close(self) {
-        self.recording.as_ref().map(|r| r.close());
+        self.recording.map(|r| r.close());
         self.midi_input.close();
     }
 }
