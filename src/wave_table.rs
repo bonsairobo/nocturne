@@ -13,8 +13,8 @@ static mut SAWTOOTH_WAVE: [f32; WAVE_TABLE_SIZE] = [0.0; WAVE_TABLE_SIZE];
 static mut TRIANGLE_WAVE: [f32; WAVE_TABLE_SIZE] = [0.0; WAVE_TABLE_SIZE];
 static mut SINE_WAVE: [f32; WAVE_TABLE_SIZE] = [0.0; WAVE_TABLE_SIZE];
 
-// Wave functions must be defined on the domain [0.0, 1.0], preferably with a
-// codomain of [-1.0, 1.0].
+// Wave functions must be defined on the domain [0.0, 1.0], preferably with a codomain of [-1.0,
+// 1.0].
 
 fn init_wave<F>(wave_fn: F, table: &mut [f32])
 where

@@ -18,10 +18,14 @@ pub struct AudioOutputDeviceStream {
 impl AudioOutputDeviceStream {
     pub fn connect_default() -> AudioOutputDeviceStream {
         let host = cpal::default_host();
-        let device = host.default_output_device().expect("no output device available");
-        let mut supported_configs_range = device.supported_output_configs()
+        let device = host
+            .default_output_device()
+            .expect("no output device available");
+        let mut supported_configs_range = device
+            .supported_output_configs()
             .expect("error while querying configs");
-        let supported_config = supported_configs_range.next()
+        let supported_config = supported_configs_range
+            .next()
             .expect("no supported config?!")
             .with_max_sample_rate();
         let config = supported_config.config();
@@ -30,15 +34,17 @@ impl AudioOutputDeviceStream {
         let (buffer_request_tx, buffer_request_rx) = channel::unbounded();
         let (sample_tx, sample_rx) = channel::unbounded();
 
-        let stream = device.build_output_stream(
-            &config,
-            move |data: &mut [f32]| {
-                service_cpal_output_stream_callback(data, &buffer_request_tx, &sample_rx)
-            },
-            move |err| {
-                // TODO
-            },
-        ).expect("Failed to build CPAL output stream");
+        let stream = device
+            .build_output_stream(
+                &config,
+                move |data: &mut [f32]| {
+                    service_cpal_output_stream_callback(data, &buffer_request_tx, &sample_rx)
+                },
+                move |err| {
+                    // TODO
+                },
+            )
+            .expect("Failed to build CPAL output stream");
 
         AudioOutputDeviceStream {
             stream,
@@ -52,15 +58,21 @@ impl AudioOutputDeviceStream {
     }
 
     pub fn write_frame(&self, frame: AudioFrame) {
-        self.sample_tx.send(frame).expect("Failed to send frame to output device");
+        self.sample_tx
+            .send(frame)
+            .expect("Failed to send frame to output device");
     }
 
     pub fn play(&self) {
-        self.stream.play().expect("Failed to play output device stream");
+        self.stream
+            .play()
+            .expect("Failed to play output device stream");
     }
 
     pub fn pause(&self) {
-        self.stream.pause().expect("Failed to pause output device stream");
+        self.stream
+            .pause()
+            .expect("Failed to pause output device stream");
     }
 }
 

@@ -8,8 +8,8 @@ pub fn get_midi_key_hz(key: wmidi::Note) -> f32 {
 }
 
 pub fn list_midi_input_ports() {
-    let midi_in = midir::MidiInput::new("nocturne_midi_temporary")
-        .expect("Failed to load MIDI input");
+    let midi_in =
+        midir::MidiInput::new("nocturne_midi_temporary").expect("Failed to load MIDI input");
     println!("--- Available MIDI input ports ---");
     for i in 0..midi_in.port_count() {
         println!(
@@ -43,14 +43,18 @@ impl MidiInputStream {
                 move |timestamp, message, _| {
                     let mut message_copy: [u8; 3] = [0; 3];
                     message_copy.copy_from_slice(&message);
-                    message_tx.send((timestamp, message_copy))
+                    message_tx
+                        .send((timestamp, message_copy))
                         .expect("Failed to send MIDI message");
                 },
                 (),
             )
             .expect("Failed to open MIDI input connection.");
 
-        MidiInputStream { connection, message_rx }
+        MidiInputStream {
+            connection,
+            message_rx,
+        }
     }
 
     pub fn close(self) -> midir::MidiInput {

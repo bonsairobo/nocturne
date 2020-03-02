@@ -1,7 +1,7 @@
 use crate::{AudioFrame, CHANNELS, FRAME_SIZE, SAMPLE_HZ};
 
 use crossbeam_channel as channel;
-use crossbeam_channel::{Receiver, Sender, select};
+use crossbeam_channel::{select, Receiver, Sender};
 use log::info;
 use std::path::PathBuf;
 use std::thread;
@@ -26,7 +26,9 @@ impl RecordingOutputStream {
     }
 
     pub fn write_frame(&self, frame: AudioFrame) {
-        self.sample_tx.send(frame).expect("Failed to send frame to WAV writer");
+        self.sample_tx
+            .send(frame)
+            .expect("Failed to send frame to WAV writer");
     }
 
     pub fn close(&self) {

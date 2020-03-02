@@ -1,6 +1,6 @@
 use crate::{
     audio_device::AudioOutputDeviceStream,
-    midi::{MidiInputStream, RawMidiMessage, get_midi_key_hz},
+    midi::{get_midi_key_hz, MidiInputStream, RawMidiMessage},
     recording::RecordingOutputStream,
     wave_table::{self, WaveTableIndex},
     AudioFrame, CHANNELS, FRAME_SIZE, SAMPLES_PER_FRAME,

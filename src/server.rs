@@ -1,7 +1,5 @@
 use crate::{
-    audio_device::AudioOutputDeviceStream,
-    midi::MidiInputStream,
-    recording::RecordingOutputStream,
+    audio_device::AudioOutputDeviceStream, midi::MidiInputStream, recording::RecordingOutputStream,
     synthesizer::Synthesizer,
 };
 
@@ -34,7 +32,10 @@ impl NocturneServer {
         // Create the synth.
         let midi_input_stream = MidiInputStream::connect(self.midi_input_port);
         let audio_output_stream = AudioOutputDeviceStream::connect_default();
-        let recorder = self.recording_path.as_ref().map(|p| RecordingOutputStream::connect(p));
+        let recorder = self
+            .recording_path
+            .as_ref()
+            .map(|p| RecordingOutputStream::connect(p));
         let mut synth = Synthesizer::new(midi_input_stream, audio_output_stream, recorder);
 
         // Run the synth.

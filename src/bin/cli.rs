@@ -1,4 +1,4 @@
-use nocturne::{NocturneServer, list_midi_input_ports};
+use nocturne::{list_midi_input_ports, NocturneServer};
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -13,7 +13,7 @@ enum Opt {
 
         #[structopt(short = "r", long = "recording", parse(from_os_str))]
         recording_path: Option<PathBuf>,
-    }
+    },
 }
 
 // TODO: return Result
@@ -25,7 +25,10 @@ fn main() {
 
     match opt {
         Opt::List => list_midi_input_ports(),
-        Opt::Run { midi_input_port, recording_path } => {
+        Opt::Run {
+            midi_input_port,
+            recording_path,
+        } => {
             let server = NocturneServer::new(midi_input_port, recording_path);
             server.run();
         }
