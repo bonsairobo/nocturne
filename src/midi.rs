@@ -1,6 +1,7 @@
 use crossbeam_channel as channel;
 use crossbeam_channel::{Receiver, Sender};
 use pitch_calc::Step;
+use log::{info, trace};
 use midly::Smf;
 use std::fs;
 use std::io::Read;
@@ -132,8 +133,13 @@ fn quantize_midi_track_thread(
         let mut raw_message = Vec::with_capacity(3);
         kind.write(&mut None, &mut raw_message).expect("Failed to serialize MIDI message");
         let mut raw_message_buf = [0u8; 3];
-        assert_eq!(raw_message.len(), 3);
-        raw_message_buf.copy_from_slice(&raw_message[..]);
+        let message_len = raw_message.len();
+        if message_len > 3 {
+            // HACK: ignore certain events
+            trace!("Ignoring {}-byte event {:?}", message_len, kind);
+            continue;
+        }
+        raw_message_buf[..message_len].copy_from_slice(&raw_message[..]);
         message_tx.send((timestamp, raw_message_buf)).expect("Failed to send MIDI message");
 
         // Sleep until next event.
@@ -144,6 +150,8 @@ fn quantize_midi_track_thread(
         nanos -= seconds * 1_000_000;
         spin_sleep::sleep(Duration::new(seconds as u64, nanos as u32));
     }
+
+    info!("Exiting MIDI file playback thread")
 }
 
 impl MidiInputStream for MidiTrackInputStream {

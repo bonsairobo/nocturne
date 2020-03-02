@@ -25,7 +25,7 @@ impl NocturneServer {
     }
 
     pub fn run_midi_file(&self, path: PathBuf) {
-        let midi_input = MidiTrackInputStream::start(path, 0);
+        let midi_input = MidiTrackInputStream::start(path, 1);
         self.run_midi(midi_input);
     }
 
