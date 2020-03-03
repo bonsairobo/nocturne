@@ -1,4 +1,4 @@
-use crate::AudioFrame;
+use crate::{AudioFrame, FRAME_SIZE};
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
@@ -7,6 +7,7 @@ use cpal::{
 use crossbeam_channel as channel;
 use crossbeam_channel::{Receiver, Sender};
 use log::{info, trace};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct AudioOutputDeviceStream {
     stream: cpal::Stream,
@@ -37,12 +38,18 @@ impl AudioOutputDeviceStream {
 
         let (buffer_request_tx, buffer_request_rx) = channel::unbounded();
         let (sample_tx, sample_rx) = channel::unbounded();
+        let mut leftover_buffer = LeftoverBuffer::new();
 
         let stream = device
             .build_output_stream(
                 &config,
                 move |data: &mut [f32]| {
-                    service_cpal_output_stream_callback(data, &buffer_request_tx, &sample_rx)
+                    service_cpal_output_stream_callback(
+                        data,
+                        &mut leftover_buffer,
+                        &buffer_request_tx,
+                        &sample_rx,
+                    )
                 },
                 move |err| {
                     // TODO
@@ -87,6 +94,7 @@ impl AudioOutputDeviceStream {
 
 fn service_cpal_output_stream_callback(
     data: &mut [f32],
+    leftover_buffer: &mut LeftoverBuffer,
     buffer_request_tx: &Sender<()>,
     sample_rx: &Receiver<AudioFrame>,
 ) {
@@ -94,26 +102,67 @@ fn service_cpal_output_stream_callback(
     let zeroes = vec![0.0; data.len()];
     data.copy_from_slice(&zeroes);
 
-    // Tell the synthesizer that we're buffering so it knows to queue up more samples. This
-    // shouldn't block.
-    buffer_request_tx
-        .send(())
-        .expect("Failed to send buffer request");
+    let items_requested = data.len();
+    let mut items_fulfilled = 0;
+    while items_fulfilled < items_requested {
+        if leftover_buffer.is_empty() {
+            // Tell the synthesizer that we're buffering so it knows to queue up more samples. This
+            // shouldn't block.
+            buffer_request_tx
+                .send(())
+                .expect("Failed to send buffer request");
 
-    // We shouldn't block to receive samples from the synthesizer since this callback executes in a
-    // realtime priority thread. This means the synthesizer thread needs to queue up samples at
-    // least as quickly as CPAL can consume them, or else we'll play empty frames.
-    match sample_rx.try_recv() {
-        Ok(samples) => {
-            // TODO: dynamic-buffer-length queueing? could mark the channel entries with a "#
-            // consumed" field. may require changes to the buffer_notify scheme
-            let samples_requested = data.len();
-            let samples_provided = samples.len();
-            let overlap = samples_requested.min(samples_provided);
-            trace!("Samples requested = {}", samples_requested);
-            trace!("Samples provided = {}", samples_provided);
-            data[..overlap].copy_from_slice(&samples[..overlap]);
+            // Replenish our buffer. We shouldn't block to receive samples from the synthesizer
+            // since this callback executes in a realtime priority thread. This means the
+            // synthesizer thread needs to queue up samples at least as quickly as CPAL can consume
+            // them, or else we'll play frames with gaps.
+            match sample_rx.try_recv() {
+                Ok(samples) => leftover_buffer.overwrite(&samples),
+                Err(_) => break,
+            }
         }
-        Err(_) => trace!("CPAL received empty frame"), // Oh no! A glitch!
+
+        items_fulfilled += leftover_buffer.consume(&mut data[items_fulfilled..]);
+    }
+
+    if items_fulfilled < items_requested {
+        trace!("Fulfilled {} of {} items requested", items_fulfilled, items_requested);
+    }
+}
+
+struct LeftoverBuffer {
+    buffer: [f32; FRAME_SIZE],
+    cursor: usize,
+}
+
+impl LeftoverBuffer {
+    fn new() -> Self {
+        LeftoverBuffer {
+            buffer: [0.0; FRAME_SIZE],
+            cursor: FRAME_SIZE,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.items_leftover() == 0
+    }
+
+    fn items_leftover(&self) -> usize {
+        FRAME_SIZE - self.cursor
+    }
+
+    /// Returns the number of items consumed from self.
+    fn consume(&mut self, data_out: &mut [f32]) -> usize {
+        let copy_amt = self.items_leftover().min(data_out.len());
+        let src_end = self.cursor + copy_amt;
+        data_out[..copy_amt].copy_from_slice(&self.buffer[self.cursor..src_end]);
+        self.cursor += copy_amt;
+
+        copy_amt
+    }
+
+    fn overwrite(&mut self, data_in: &[f32]) {
+        self.buffer[..].copy_from_slice(data_in);
+        self.cursor = 0;
     }
 }

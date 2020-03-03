@@ -8,7 +8,7 @@ mod wave_table;
 // TODO: use output stream to configure this parameter
 const CHANNELS: i32 = 2;
 
-const FRAME_SIZE: usize = 960;
+const FRAME_SIZE: usize = 512;
 const SAMPLES_PER_FRAME: u32 = FRAME_SIZE as u32 / CHANNELS as u32;
 
 type AudioFrame = [f32; FRAME_SIZE];
