@@ -67,7 +67,6 @@ impl Instrument {
         }
 
         // Run the synth.
-        // TODO: this event loop could benefit from async rust
         audio_output_stream.play();
         loop {
             select! {
