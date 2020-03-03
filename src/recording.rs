@@ -1,4 +1,4 @@
-use crate::{AudioFrame, CHANNELS, FRAME_SIZE};
+use crate::{AudioFrame, FRAME_SIZE};
 
 use crossbeam_channel as channel;
 use crossbeam_channel::{select, Receiver, Sender};
@@ -12,7 +12,7 @@ pub struct RecordingOutputStream {
 }
 
 impl RecordingOutputStream {
-    pub fn connect(path: &PathBuf, sample_hz: u32) -> Self {
+    pub fn connect(path: &PathBuf, channels: u16, sample_hz: u32) -> Self {
         let path_str = path
             .as_path()
             .to_str()
@@ -21,7 +21,7 @@ impl RecordingOutputStream {
         let (sample_tx, sample_rx) = channel::unbounded();
         let (exit_tx, exit_rx) = channel::bounded(1);
         thread::spawn(move || {
-            buffered_file_writer_thread(path_str, sample_hz, &sample_rx, &exit_rx)
+            buffered_file_writer_thread(path_str, channels, sample_hz, &sample_rx, &exit_rx)
         });
 
         RecordingOutputStream { sample_tx, exit_tx }
@@ -40,12 +40,13 @@ impl RecordingOutputStream {
 
 fn buffered_file_writer_thread(
     path: String,
+    channels: u16,
     sample_hz: u32,
     samples_rx: &Receiver<[f32; FRAME_SIZE]>,
     exit_rx: &Receiver<()>,
 ) {
     let spec = hound::WavSpec {
-        channels: CHANNELS as u16,
+        channels,
         sample_rate: sample_hz,
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,

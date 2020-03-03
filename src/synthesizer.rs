@@ -3,7 +3,7 @@ use crate::{
     midi::{get_midi_key_hz, MidiInputStream, RawMidiMessage},
     recording::RecordingOutputStream,
     wave_table::{self, WaveTableIndex},
-    AudioFrame, CHANNELS, FRAME_SIZE, SAMPLES_PER_FRAME,
+    AudioFrame, FRAME_SIZE,
 };
 
 use crossbeam_channel::select;
@@ -43,6 +43,10 @@ impl<M: MidiInputStream> Synthesizer<M> {
             recording,
             notes_playing: HashMap::new(),
         }
+    }
+
+    fn num_channels(&self) -> usize {
+        self.output_device.get_config().channels as usize
     }
 
     pub fn buffer_ahead(&mut self) {
@@ -105,17 +109,22 @@ impl<M: MidiInputStream> Synthesizer<M> {
         }
     }
 
+    fn samples_per_frame(&self) -> usize {
+        FRAME_SIZE / self.num_channels()
+    }
+
     fn sample_notes(&mut self) -> AudioFrame {
         let oscillator = &wave_table::get_sine_wave();
         let mut remove_keys = vec![];
         let mut frame = [0.0; FRAME_SIZE];
+        let num_channels = self.num_channels();
+        let samples_per_frame = self.samples_per_frame();
         for (key, note) in self.notes_playing.iter_mut() {
             let mut i = 0;
-            for _ in 0..SAMPLES_PER_FRAME {
+            for _ in 0..samples_per_frame {
                 // TODO: scale down note sample generator instead of clipping
                 let sample = note.sample_table(oscillator).min(1.0);
-                // TODO: configurable # of channels
-                for _ in 0..CHANNELS {
+                for _ in 0..num_channels {
                     frame[i] += sample;
                     i += 1;
                 }

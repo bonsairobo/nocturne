@@ -37,11 +37,12 @@ impl NocturneServer {
     pub fn run_midi<M: MidiInputStream>(&self, midi_input_stream: M) {
         // Create the synth.
         let audio_output_stream = AudioOutputDeviceStream::connect_default();
+        let channels = audio_output_stream.get_config().channels;
         let SampleRate(sample_hz) = audio_output_stream.get_config().sample_rate;
         let recorder = self
             .recording_path
             .as_ref()
-            .map(|p| RecordingOutputStream::connect(p, sample_hz));
+            .map(|p| RecordingOutputStream::connect(p, channels, sample_hz));
         let mut synth = Synthesizer::new(
             midi_input_stream,
             sample_hz as f32,
