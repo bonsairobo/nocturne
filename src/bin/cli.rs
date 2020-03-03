@@ -25,7 +25,6 @@ enum Opt {
 }
 
 // TODO: return Result
-// TODO: use paw
 fn main() {
     env_logger::init();
 
