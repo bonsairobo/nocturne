@@ -25,17 +25,17 @@ impl Instrument {
         }
     }
 
-    pub fn run_midi_device(&self, midi_input_port: usize) {
+    pub fn play_midi_device(&self, midi_input_port: usize) {
         let midi_input = MidiInputDeviceStream::connect(midi_input_port);
-        self.run_midi(midi_input);
+        self.play_midi(midi_input);
     }
 
-    pub fn run_midi_file(&self, path: PathBuf) {
+    pub fn play_midi_file(&self, path: PathBuf) {
         let midi_input = MidiTrackInputStream::start(path, 1);
-        self.run_midi(midi_input);
+        self.play_midi(midi_input);
     }
 
-    pub fn run_midi<M: MidiInputStream>(&self, midi_input_stream: M) {
+    pub fn play_midi<M: MidiInputStream>(&self, midi_input_stream: M) {
         // Create the synth.
         let audio_output_stream = AudioOutputDeviceStream::connect_default();
         let channels = audio_output_stream.get_config().channels;
