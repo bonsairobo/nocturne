@@ -25,11 +25,9 @@ impl Synthesizer {
         }
     }
 
-    pub fn handle_midi_message(&mut self, raw_message: RawMidiMessage) {
-        let (_timestamp, message) = raw_message;
+    pub fn handle_midi_message(&mut self, (_timestamp, message): RawMidiMessage) {
         // TODO: replace with midly::Event::read
         let message = MidiMessage::try_from(&message[..]).expect("Failed to parse MIDI message.");
-
         match message {
             MidiMessage::NoteOn(_, key, velocity) => {
                 info!("NoteOn key = {} vel = {:?}", key, velocity);
@@ -50,7 +48,7 @@ impl Synthesizer {
     }
 
     pub fn sample_notes(&mut self, num_channels: usize) -> AudioFrame {
-        let oscillator = &wave_table::get_sine_wave();
+        let oscillator = &wave_table::get_sawtooth_wave();
         let mut remove_keys = vec![];
         let mut frame = [0.0; FRAME_SIZE];
         let samples_per_frame = FRAME_SIZE / num_channels;

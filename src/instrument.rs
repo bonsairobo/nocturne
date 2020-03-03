@@ -33,7 +33,7 @@ impl Instrument {
 
     pub fn play_midi_file(&self, path: PathBuf) {
         // TODO: play all the tracks concurrently
-        let midi_input = MidiTrackInputStream::start(path, 2);
+        let midi_input = MidiTrackInputStream::start(path, 3);
         self.play_midi(midi_input);
     }
 
@@ -67,6 +67,7 @@ impl Instrument {
         }
 
         // Run the synth.
+        // TODO: this event loop could benefit from async rust
         audio_output_stream.play();
         loop {
             select! {
