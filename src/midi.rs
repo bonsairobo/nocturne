@@ -118,6 +118,7 @@ fn quantize_midi_track_thread(
 
     let smf = Smf::parse(&bytes).unwrap();
 
+    // TODO: configurable/dynamic BPM
     let bpm: Bpm = 120.0;
     let ppqn = match smf.header.timing {
         midly::Timing::Metrical(m) => m.as_int() as Ppqn,
