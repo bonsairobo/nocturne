@@ -40,11 +40,17 @@ fn main() {
 
     match opt {
         Opt::ListMidiPorts => list_midi_input_ports(),
-        Opt::PlayDevice { midi_input_port, recording_path } => {
+        Opt::PlayDevice {
+            midi_input_port,
+            recording_path,
+        } => {
             let server = NocturneServer::new(exit_rx, recording_path);
             server.run_midi_device(midi_input_port);
-        },
-        Opt::PlayFile { midi_path, recording_path } => {
+        }
+        Opt::PlayFile {
+            midi_path,
+            recording_path,
+        } => {
             let server = NocturneServer::new(exit_rx, recording_path);
             server.run_midi_file(midi_path);
         }

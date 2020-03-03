@@ -1,7 +1,8 @@
 use crate::{
     audio_device::AudioOutputDeviceStream,
     midi::{MidiInputDeviceStream, MidiInputStream, MidiTrackInputStream},
-    recording::RecordingOutputStream, synthesizer::Synthesizer,
+    recording::RecordingOutputStream,
+    synthesizer::Synthesizer,
 };
 
 use cpal::SampleRate;
@@ -17,7 +18,10 @@ pub struct NocturneServer {
 
 impl NocturneServer {
     pub fn new(canceller: Receiver<()>, recording_path: Option<PathBuf>) -> Self {
-        NocturneServer { canceller, recording_path }
+        NocturneServer {
+            canceller,
+            recording_path,
+        }
     }
 
     pub fn run_midi_device(&self, midi_input_port: usize) {
@@ -39,7 +43,10 @@ impl NocturneServer {
             .as_ref()
             .map(|p| RecordingOutputStream::connect(p, sample_hz));
         let mut synth = Synthesizer::new(
-            midi_input_stream, sample_hz as f32, audio_output_stream, recorder
+            midi_input_stream,
+            sample_hz as f32,
+            audio_output_stream,
+            recorder,
         );
 
         // Run the synth.

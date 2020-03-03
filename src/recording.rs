@@ -20,9 +20,9 @@ impl RecordingOutputStream {
             .to_string();
         let (sample_tx, sample_rx) = channel::unbounded();
         let (exit_tx, exit_rx) = channel::bounded(1);
-        thread::spawn(move ||
+        thread::spawn(move || {
             buffered_file_writer_thread(path_str, sample_hz, &sample_rx, &exit_rx)
-        );
+        });
 
         RecordingOutputStream { sample_tx, exit_tx }
     }

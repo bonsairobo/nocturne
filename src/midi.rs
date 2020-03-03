@@ -1,8 +1,8 @@
 use crossbeam_channel as channel;
 use crossbeam_channel::{Receiver, Sender};
-use pitch_calc::Step;
 use log::{info, trace};
 use midly::Smf;
+use pitch_calc::Step;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -94,9 +94,9 @@ impl MidiTrackInputStream {
         let (message_tx, message_rx) = channel::unbounded();
         let (exit_tx, exit_rx) = channel::unbounded();
 
-        thread::spawn(move ||
+        thread::spawn(move || {
             quantize_midi_track_thread(midi_file_path, track_num, message_tx, exit_rx)
-        );
+        });
 
         MidiTrackInputStream {
             message_rx,
@@ -109,11 +109,12 @@ fn quantize_midi_track_thread(
     midi_file_path: PathBuf,
     track_num: usize,
     message_tx: Sender<RawMidiMessage>,
-    exit_rx: Receiver<()>
+    exit_rx: Receiver<()>,
 ) {
     let mut bytes = Vec::new();
     let mut file = fs::File::open(&midi_file_path).unwrap();
-    file.read_to_end(&mut bytes).expect("Failed to read MIDI file");
+    file.read_to_end(&mut bytes)
+        .expect("Failed to read MIDI file");
 
     let smf = Smf::parse(&bytes).unwrap();
 
@@ -131,7 +132,8 @@ fn quantize_midi_track_thread(
         let midly::Event { delta, kind } = event;
         let timestamp = 0; // TODO?
         let mut raw_message = Vec::with_capacity(3);
-        kind.write(&mut None, &mut raw_message).expect("Failed to serialize MIDI message");
+        kind.write(&mut None, &mut raw_message)
+            .expect("Failed to serialize MIDI message");
         let mut raw_message_buf = [0u8; 3];
         let message_len = raw_message.len();
         if message_len > 3 {
@@ -140,7 +142,9 @@ fn quantize_midi_track_thread(
             continue;
         }
         raw_message_buf[..message_len].copy_from_slice(&raw_message[..]);
-        message_tx.send((timestamp, raw_message_buf)).expect("Failed to send MIDI message");
+        message_tx
+            .send((timestamp, raw_message_buf))
+            .expect("Failed to send MIDI message");
 
         // Sleep until next event.
         let delta_ticks = Ticks(delta.as_int() as i64);
@@ -160,6 +164,8 @@ impl MidiInputStream for MidiTrackInputStream {
     }
 
     fn close(self) {
-        self.exit_tx.send(()).expect("Failed to stop midi track thread")
+        self.exit_tx
+            .send(())
+            .expect("Failed to stop midi track thread")
     }
 }

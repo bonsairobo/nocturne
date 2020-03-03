@@ -125,7 +125,11 @@ fn service_cpal_output_stream_callback(
     }
 
     if items_fulfilled < items_requested {
-        trace!("Fulfilled {} of {} items requested", items_fulfilled, items_requested);
+        trace!(
+            "Fulfilled {} of {} items requested",
+            items_fulfilled,
+            items_requested
+        );
     }
 }
 
