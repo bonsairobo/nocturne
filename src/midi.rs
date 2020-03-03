@@ -117,7 +117,7 @@ fn quantize_midi_track_thread(
 
     let smf = Smf::parse(&bytes).unwrap();
 
-    let bpm = 80 as Bpm;
+    let bpm: Bpm = 120.0;
     let ppqn = match smf.header.timing {
         midly::Timing::Metrical(m) => m.as_int() as Ppqn,
         midly::Timing::Timecode(_, _) => panic!("WTF is a timecode"),
