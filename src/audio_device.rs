@@ -20,7 +20,7 @@ pub struct AudioOutputDeviceStream {
     sample_tx: Sender<AudioFrame>,
 }
 
-pub fn default_output_device() -> (<Host as HostTrait>::Device, StreamConfig) {
+fn default_output_device() -> (<Host as HostTrait>::Device, StreamConfig) {
     let host = cpal::default_host();
     let device = host
         .default_output_device()
