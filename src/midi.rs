@@ -125,6 +125,8 @@ fn quantize_midi_track_thread(
         midly::Timing::Timecode(_, _) => panic!("WTF is a timecode"),
     };
 
+    // TODO: sleeping could be replaced with tokio::time scheduling
+
     for event in smf.tracks[track_num].iter() {
         if exit_rx.try_recv().is_ok() {
             break;
