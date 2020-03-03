@@ -7,7 +7,6 @@ use cpal::{
 use crossbeam_channel as channel;
 use crossbeam_channel::{Receiver, Sender};
 use log::{info, trace};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct AudioOutputDeviceStream {
     stream: cpal::Stream,
