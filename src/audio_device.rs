@@ -2,6 +2,7 @@ use crate::{AudioFrame, FRAME_SIZE};
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
+    Host,
     StreamConfig,
 };
 use crossbeam_channel as channel;
@@ -19,20 +20,33 @@ pub struct AudioOutputDeviceStream {
     sample_tx: Sender<AudioFrame>,
 }
 
+pub fn default_output_device() -> (<Host as HostTrait>::Device, StreamConfig) {
+    let host = cpal::default_host();
+    let device = host
+        .default_output_device()
+        .expect("no output device available");
+    let mut supported_configs_range = device
+        .supported_output_configs()
+        .expect("error while querying configs");
+    let supported_config = supported_configs_range
+        .next()
+        .expect("no supported config?!")
+        .with_max_sample_rate();
+    let config = supported_config.config();
+
+    (device, config)
+}
+
 impl AudioOutputDeviceStream {
     pub fn connect_default() -> AudioOutputDeviceStream {
-        let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .expect("no output device available");
-        let mut supported_configs_range = device
-            .supported_output_configs()
-            .expect("error while querying configs");
-        let supported_config = supported_configs_range
-            .next()
-            .expect("no supported config?!")
-            .with_max_sample_rate();
-        let config = supported_config.config();
+        let (device, config) = default_output_device();
+
+        Self::connect_device(device, config)
+    }
+
+    pub fn connect_device(
+        device: <Host as HostTrait>::Device, config: StreamConfig
+    ) -> AudioOutputDeviceStream {
         info!("Creating output device stream with config:\n{:?}", config);
 
         let (buffer_request_tx, buffer_request_rx) = channel::unbounded();
