@@ -1,78 +1,31 @@
 use crate::{
-    audio_device::AudioOutputDeviceStream,
-    midi::{get_midi_key_hz, MidiInputStream, RawMidiMessage},
-    recording::RecordingOutputStream,
+    midi::{get_midi_key_hz, RawMidiMessage},
     wave_table::{self, WaveTableIndex},
     AudioFrame, FRAME_SIZE,
 };
 
-use crossbeam_channel::select;
 use log::{info, trace};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use wmidi::MidiMessage;
 
-// The synthesizer thread will attempt to queue samples ahead of the audio output thread. This
-// represents an additional fixed latency of 5 buffers * 512 samples per channel * (1 / 44100)
-// seconds = 0.06 seconds.
-const BUFFERS_AHEAD: u32 = 5;
-
 // TODO: replace attack/decay with envelopes
 // TODO: legato polyphony
 
-pub struct Synthesizer<M> {
-    midi_input: M,
+pub struct Synthesizer {
     sample_hz: f32,
-    output_device: AudioOutputDeviceStream,
-    recording: Option<RecordingOutputStream>,
     notes_playing: HashMap<wmidi::Note, SynthNote>,
 }
 
-impl<M: MidiInputStream> Synthesizer<M> {
-    pub fn new(
-        midi_input: M,
-        sample_hz: f32,
-        output_device: AudioOutputDeviceStream,
-        recording: Option<RecordingOutputStream>,
-    ) -> Synthesizer<M> {
+impl Synthesizer {
+    pub fn new(sample_hz: f32) -> Self {
         Self {
-            midi_input,
             sample_hz,
-            output_device,
-            recording,
             notes_playing: HashMap::new(),
         }
     }
 
-    fn num_channels(&self) -> usize {
-        self.output_device.get_config().channels as usize
-    }
-
-    pub fn buffer_ahead(&mut self) {
-        // Get ahead of the CPAL buffering.
-        for _ in 0..BUFFERS_AHEAD {
-            self.sample_notes();
-        }
-    }
-
-    pub fn start_output_device(&self) {
-        self.output_device.play();
-    }
-
-    pub fn handle_events(&mut self) {
-        select! {
-            recv(self.midi_input.get_message_rx()) -> item => {
-                let raw_message = item.expect("Couldn't receive MIDI message.");
-                self.handle_midi_message(raw_message);
-            },
-            recv(self.output_device.get_buffer_request_rx()) -> item => {
-                item.expect("Couldn't receive buffer request.");
-                self.send_frame();
-            }
-        }
-    }
-
-    fn handle_midi_message(&mut self, raw_message: RawMidiMessage) {
+    pub fn handle_midi_message(&mut self, raw_message: RawMidiMessage) {
         let (_timestamp, message) = raw_message;
         // TODO: replace with midly::Event::read
         let message = MidiMessage::try_from(&message[..]).expect("Failed to parse MIDI message.");
@@ -96,28 +49,11 @@ impl<M: MidiInputStream> Synthesizer<M> {
         }
     }
 
-    fn send_frame(&mut self) {
-        let frame = self.sample_notes();
-
-        // TODO: abstract separate outputs
-        if let Some(recording) = self.recording.as_ref() {
-            self.output_device.write_frame(frame.clone());
-            recording.write_frame(frame);
-        } else {
-            self.output_device.write_frame(frame.clone());
-        }
-    }
-
-    fn samples_per_frame(&self) -> usize {
-        FRAME_SIZE / self.num_channels()
-    }
-
-    fn sample_notes(&mut self) -> AudioFrame {
+    pub fn sample_notes(&mut self, num_channels: usize) -> AudioFrame {
         let oscillator = &wave_table::get_sine_wave();
         let mut remove_keys = vec![];
         let mut frame = [0.0; FRAME_SIZE];
-        let num_channels = self.num_channels();
-        let samples_per_frame = self.samples_per_frame();
+        let samples_per_frame = FRAME_SIZE / num_channels;
         for (key, note) in self.notes_playing.iter_mut() {
             let mut i = 0;
             for _ in 0..samples_per_frame {
@@ -159,11 +95,6 @@ impl<M: MidiInputStream> Synthesizer<M> {
         if let Some(n) = self.notes_playing.get_mut(&key) {
             n.stop_requested = true;
         }
-    }
-
-    pub fn close(self) {
-        self.recording.map(|r| r.close());
-        self.midi_input.close();
     }
 }
 

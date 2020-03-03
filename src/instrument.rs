@@ -3,12 +3,18 @@ use crate::{
     midi::{MidiInputDeviceStream, MidiInputStream, MidiTrackInputStream},
     recording::RecordingOutputStream,
     synthesizer::Synthesizer,
+    AudioFrame,
 };
 
 use cpal::SampleRate;
-use crossbeam_channel::Receiver;
+use crossbeam_channel::{Receiver, select};
 use log::debug;
 use std::path::PathBuf;
+
+// The synthesizer thread will attempt to queue samples ahead of the audio output thread. This
+// represents an additional fixed latency of 5 buffers * 512 samples per channel * (1 / 44100)
+// seconds = 0.06 seconds.
+const BUFFERS_AHEAD: u32 = 5;
 
 /// Accepts MIDI input via channels and controls a synthesizer, sending audio samples to an output
 /// device.
@@ -38,30 +44,50 @@ impl Instrument {
     pub fn play_midi<M: MidiInputStream>(&self, midi_input_stream: M) {
         // Create the synth.
         let audio_output_stream = AudioOutputDeviceStream::connect_default();
-        let channels = audio_output_stream.get_config().channels;
+        let num_channels = audio_output_stream.get_config().channels;
         let SampleRate(sample_hz) = audio_output_stream.get_config().sample_rate;
         let recorder = self
             .recording_path
             .as_ref()
-            .map(|p| RecordingOutputStream::connect(p, channels, sample_hz));
-        let mut synth = Synthesizer::new(
-            midi_input_stream,
-            sample_hz as f32,
-            audio_output_stream,
-            recorder,
-        );
+            .map(|p| RecordingOutputStream::connect(p, num_channels, sample_hz));
+        let mut synth = Synthesizer::new(sample_hz as f32);
+
+        let send_frame = |frame: AudioFrame| {
+            if let Some(recorder) = recorder.as_ref() {
+                audio_output_stream.write_frame(frame.clone());
+                recorder.write_frame(frame);
+            } else {
+                audio_output_stream.write_frame(frame.clone());
+            }
+        };
+
+        // Get ahead of the CPAL buffering.
+        for _ in 0..BUFFERS_AHEAD {
+            send_frame(synth.sample_notes(num_channels as usize));
+        }
 
         // Run the synth.
-        synth.buffer_ahead();
-        synth.start_output_device();
+        audio_output_stream.play();
         loop {
-            synth.handle_events();
+            select! {
+                recv(midi_input_stream.get_message_rx()) -> item => {
+                    let raw_message = item.expect("Couldn't receive MIDI message.");
+                    synth.handle_midi_message(raw_message);
+                },
+                recv(audio_output_stream.get_buffer_request_rx()) -> item => {
+                    item.expect("Couldn't receive buffer request.");
+                    send_frame(synth.sample_notes(num_channels as usize));
+                }
+            }
 
             if self.canceller.try_recv().is_ok() {
                 debug!("Interrupted instrument");
                 break;
             }
         }
-        synth.close();
+
+        // Tear down.
+        recorder.map(|r| r.close());
+        midi_input_stream.close();
     }
 }

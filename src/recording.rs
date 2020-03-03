@@ -12,7 +12,7 @@ pub struct RecordingOutputStream {
 }
 
 impl RecordingOutputStream {
-    pub fn connect(path: &PathBuf, channels: u16, sample_hz: u32) -> Self {
+    pub fn connect(path: &PathBuf, num_channels: u16, sample_hz: u32) -> Self {
         let path_str = path
             .as_path()
             .to_str()
@@ -21,7 +21,7 @@ impl RecordingOutputStream {
         let (sample_tx, sample_rx) = channel::unbounded();
         let (exit_tx, exit_rx) = channel::bounded(1);
         thread::spawn(move || {
-            buffered_file_writer_thread(path_str, channels, sample_hz, &sample_rx, &exit_rx)
+            buffered_file_writer_thread(path_str, num_channels, sample_hz, &sample_rx, &exit_rx)
         });
 
         RecordingOutputStream { sample_tx, exit_tx }
