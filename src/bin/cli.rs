@@ -7,8 +7,8 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "cli")]
 enum Opt {
-    List,
-    Run {
+    ListMidiPorts,
+    PlayDevice {
         #[structopt(short = "p", long = "port")]
         midi_input_port: usize,
 
@@ -39,8 +39,8 @@ fn main() {
     .expect("Error setting Ctrl-C handler");
 
     match opt {
-        Opt::List => list_midi_input_ports(),
-        Opt::Run { midi_input_port, recording_path } => {
+        Opt::ListMidiPorts => list_midi_input_ports(),
+        Opt::PlayDevice { midi_input_port, recording_path } => {
             let server = NocturneServer::new(exit_rx, recording_path);
             server.run_midi_device(midi_input_port);
         },
