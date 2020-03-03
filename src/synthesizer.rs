@@ -17,7 +17,6 @@ use wmidi::MidiMessage;
 // seconds = 0.06 seconds.
 const BUFFERS_AHEAD: u32 = 5;
 
-// TODO: extract instrument interface
 // TODO: replace attack/decay with envelopes
 // TODO: legato polyphony
 
