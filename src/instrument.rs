@@ -32,7 +32,8 @@ impl Instrument {
     }
 
     pub fn play_midi_file(&self, path: PathBuf) {
-        let midi_input = MidiTrackInputStream::start(path, 1);
+        // TODO: play all the tracks concurrently
+        let midi_input = MidiTrackInputStream::start(path, 2);
         self.play_midi(midi_input);
     }
 

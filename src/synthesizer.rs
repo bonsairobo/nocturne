@@ -109,7 +109,7 @@ struct SynthNote {
 impl SynthNote {
     fn amplitude(&self) -> f32 {
         // BUG: there is some artifacting on the attack/release of notes, likely caused here
-        0.2 * self.attack_factor * self.decay_factor * self.velocity
+        0.2 * self.velocity
     }
 
     fn sample_table(&mut self, table: &[f32]) -> f32 {
