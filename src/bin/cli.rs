@@ -1,4 +1,4 @@
-use nocturne::{list_midi_input_ports, NocturneServer};
+use nocturne::{list_midi_input_ports, Instrument};
 
 use crossbeam_channel as channel;
 use std::path::PathBuf;
@@ -44,15 +44,15 @@ fn main() {
             midi_input_port,
             recording_path,
         } => {
-            let server = NocturneServer::new(exit_rx, recording_path);
-            server.run_midi_device(midi_input_port);
+            let instrument = Instrument::new(exit_rx, recording_path);
+            instrument.run_midi_device(midi_input_port);
         }
         Opt::PlayFile {
             midi_path,
             recording_path,
         } => {
-            let server = NocturneServer::new(exit_rx, recording_path);
-            server.run_midi_file(midi_path);
+            let instrument = Instrument::new(exit_rx, recording_path);
+            instrument.run_midi_file(midi_path);
         }
     }
 }

@@ -10,15 +10,16 @@ use crossbeam_channel::Receiver;
 use log::debug;
 use std::path::PathBuf;
 
-/// The main server that wires all inputs through the synthesizer and into the outputs.
-pub struct NocturneServer {
+/// Accepts MIDI input via channels and controls a synthesizer, sending audio samples to an output
+/// device.
+pub struct Instrument {
     canceller: Receiver<()>,
     recording_path: Option<PathBuf>,
 }
 
-impl NocturneServer {
+impl Instrument {
     pub fn new(canceller: Receiver<()>, recording_path: Option<PathBuf>) -> Self {
-        NocturneServer {
+        Instrument {
             canceller,
             recording_path,
         }
@@ -57,7 +58,7 @@ impl NocturneServer {
             synth.handle_events();
 
             if self.canceller.try_recv().is_ok() {
-                debug!("Cancelling Nocturne server operation");
+                debug!("Interrupted instrument");
                 break;
             }
         }
