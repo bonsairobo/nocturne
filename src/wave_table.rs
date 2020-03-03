@@ -21,8 +21,8 @@ fn init_wave<F>(wave_fn: F, table: &mut [f32])
 where
     F: Fn(f32) -> f32,
 {
-    for i in 0..table.len() {
-        table[i] = wave_fn(i as f32 / WAVE_TABLE_SIZE as f32);
+    for (i, item) in table.iter_mut().enumerate() {
+        *item = wave_fn(i as f32 / WAVE_TABLE_SIZE as f32);
     }
 }
 

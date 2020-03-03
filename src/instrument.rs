@@ -87,7 +87,7 @@ impl Instrument {
         }
 
         // Tear down.
-        recorder.map(|r| r.close());
+        if let Some(r) = recorder { r.close() }
         midi_input_stream.close();
     }
 }
