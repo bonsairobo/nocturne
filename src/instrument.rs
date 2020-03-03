@@ -78,12 +78,12 @@ impl Instrument {
                 recv(audio_output_stream.get_buffer_request_rx()) -> item => {
                     item.expect("Couldn't receive buffer request.");
                     send_frame(synth.sample_notes(num_channels as usize));
+                },
+                recv(self.canceller) -> item => {
+                    item.expect("Couldn't receive cancellation.");
+                    debug!("Interrupted instrument");
+                    break;
                 }
-            }
-
-            if self.canceller.try_recv().is_ok() {
-                debug!("Interrupted instrument");
-                break;
             }
         }
 
