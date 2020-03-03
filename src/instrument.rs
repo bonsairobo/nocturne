@@ -37,7 +37,7 @@ impl Instrument {
     }
 
     pub fn play_midi<M: MidiInputStream>(&self, midi_input_stream: M) {
-        // Create the synth.
+        // Create the instrument components: input streams --> synth --> output streams.
         let audio_output_stream = AudioOutputDeviceStream::connect_default();
         let num_channels = audio_output_stream.get_config().channels;
         let SampleRate(sample_hz) = audio_output_stream.get_config().sample_rate;
