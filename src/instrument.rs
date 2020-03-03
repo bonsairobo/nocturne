@@ -11,11 +11,6 @@ use crossbeam_channel::{Receiver, select};
 use log::debug;
 use std::path::PathBuf;
 
-// The synthesizer thread will attempt to queue samples ahead of the audio output thread. This
-// represents an additional fixed latency of 5 buffers * 512 samples per channel * (1 / 44100)
-// seconds = 0.06 seconds.
-const BUFFERS_AHEAD: u32 = 5;
-
 /// Accepts MIDI input via channels and controls a synthesizer, sending audio samples to an output
 /// device.
 pub struct Instrument {
@@ -62,6 +57,10 @@ impl Instrument {
         };
 
         // Get ahead of the CPAL buffering.
+        // The synthesizer thread will attempt to queue samples ahead of the audio output thread.
+        // This represents an additional fixed latency of:
+        //     5 buffers * 512 samples per channel * (1 / 44100) seconds = 0.06 seconds
+        const BUFFERS_AHEAD: u32 = 5;
         for _ in 0..BUFFERS_AHEAD {
             send_frame(synth.sample_notes(num_channels as usize));
         }
