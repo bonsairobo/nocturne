@@ -1,12 +1,16 @@
 use crate::AudioFrame;
 
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    StreamConfig,
+};
 use crossbeam_channel as channel;
 use crossbeam_channel::{Receiver, Sender};
 use log::{info, trace};
 
 pub struct AudioOutputDeviceStream {
     stream: cpal::Stream,
+    config: StreamConfig,
 
     /// Receive a message when the device wants us to buffer another frame.
     buffer_request_rx: Receiver<()>,
@@ -48,9 +52,14 @@ impl AudioOutputDeviceStream {
 
         AudioOutputDeviceStream {
             stream,
+            config,
             buffer_request_rx,
             sample_tx,
         }
+    }
+
+    pub fn get_config(&self) -> &StreamConfig {
+        &self.config
     }
 
     pub fn get_buffer_request_rx(&self) -> &Receiver<()> {

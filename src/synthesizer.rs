@@ -23,6 +23,7 @@ const BUFFERS_AHEAD: u32 = 5;
 
 pub struct Synthesizer<M> {
     midi_input: M,
+    sample_hz: f32,
     output_device: AudioOutputDeviceStream,
     recording: Option<RecordingOutputStream>,
     notes_playing: HashMap<wmidi::Note, SynthNote>,
@@ -31,11 +32,13 @@ pub struct Synthesizer<M> {
 impl<M: MidiInputStream> Synthesizer<M> {
     pub fn new(
         midi_input: M,
+        sample_hz: f32,
         output_device: AudioOutputDeviceStream,
         recording: Option<RecordingOutputStream>,
     ) -> Synthesizer<M> {
         Self {
             midi_input,
+            sample_hz,
             output_device,
             recording,
             notes_playing: HashMap::new(),
@@ -135,7 +138,7 @@ impl<M: MidiInputStream> Synthesizer<M> {
         self.notes_playing.insert(
             key,
             SynthNote {
-                table_index: WaveTableIndex::from_hz(get_midi_key_hz(key)),
+                table_index: WaveTableIndex::from_hz(self.sample_hz, get_midi_key_hz(key)),
                 stop_requested: false,
                 decay_factor: 1.0,
                 attack_factor: 0.0,

@@ -4,6 +4,7 @@ use crate::{
     recording::RecordingOutputStream, synthesizer::Synthesizer,
 };
 
+use cpal::SampleRate;
 use crossbeam_channel::Receiver;
 use log::debug;
 use std::path::PathBuf;
@@ -32,11 +33,14 @@ impl NocturneServer {
     pub fn run_midi<M: MidiInputStream>(&self, midi_input_stream: M) {
         // Create the synth.
         let audio_output_stream = AudioOutputDeviceStream::connect_default();
+        let SampleRate(sample_hz) = audio_output_stream.get_config().sample_rate;
         let recorder = self
             .recording_path
             .as_ref()
-            .map(|p| RecordingOutputStream::connect(p));
-        let mut synth = Synthesizer::new(midi_input_stream, audio_output_stream, recorder);
+            .map(|p| RecordingOutputStream::connect(p, sample_hz));
+        let mut synth = Synthesizer::new(
+            midi_input_stream, sample_hz as f32, audio_output_stream, recorder
+        );
 
         // Run the synth.
         synth.buffer_ahead();

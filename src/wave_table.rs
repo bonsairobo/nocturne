@@ -1,10 +1,11 @@
-use crate::SAMPLE_HZ;
-
 use std::f32;
 use std::sync::Once;
 
 const WAVE_TABLE_SIZE: usize = 1 << 16;
-const TABLE_SAMPLE_CONVERSION_FACTOR: f32 = WAVE_TABLE_SIZE as f32 / SAMPLE_HZ;
+
+fn table_sample_conversion_factor(sample_hz: f32) -> f32 {
+    WAVE_TABLE_SIZE as f32 / sample_hz
+}
 
 static INIT: Once = Once::new();
 
@@ -86,8 +87,8 @@ impl WaveTableIndex {
         }
     }
 
-    pub fn from_hz(hz: f32) -> Self {
-        Self::new(0.0, hz * TABLE_SAMPLE_CONVERSION_FACTOR)
+    pub fn from_hz(sample_hz: f32, hz: f32) -> Self {
+        Self::new(0.0, hz * table_sample_conversion_factor(sample_hz))
     }
 
     pub fn sample_table(&mut self, table: &[f32]) -> f32 {
