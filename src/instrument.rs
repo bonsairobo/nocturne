@@ -1,6 +1,8 @@
 use crate::{
     audio_device::AudioOutputDeviceStream,
-    midi::{MidiBytes, MidiInputDeviceStream, MidiInputStream, MidiTrackInputStream, RawMidiMessage},
+    midi::{
+        MidiBytes, MidiInputDeviceStream, MidiInputStream, MidiTrackInputStream, RawMidiMessage,
+    },
     recording::RecordingOutputStream,
     synthesizer::Synthesizer,
     CHANNEL_MAX_BUFFER,
@@ -40,12 +42,14 @@ pub async fn play_all_midi_tracks(midi_bytes: MidiBytes) {
 /// Need to synchronize access to the stream, since it is !Send, and we want to use it across
 /// awaits (threads).
 struct SafeAudioStream {
-    stream: Arc<Mutex<AudioOutputDeviceStream>>
+    stream: Arc<Mutex<AudioOutputDeviceStream>>,
 }
 
 impl SafeAudioStream {
     fn new(stream: AudioOutputDeviceStream) -> Self {
-        SafeAudioStream { stream: Arc::new(Mutex::new(stream)) }
+        SafeAudioStream {
+            stream: Arc::new(Mutex::new(stream)),
+        }
     }
 
     fn play(&self) {
@@ -88,9 +92,8 @@ impl Instrument {
 
         // Create the instrument components: input streams --> synth --> output streams.
         let (mut synth, recorder, audio_output_stream, num_channels) = {
-            let audio_output_stream = AudioOutputDeviceStream::connect_default(
-                device_frame_rx, buffer_request_tx
-            );
+            let audio_output_stream =
+                AudioOutputDeviceStream::connect_default(device_frame_rx, buffer_request_tx);
             let num_channels = audio_output_stream.get_config().channels;
             let SampleRate(sample_hz) = audio_output_stream.get_config().sample_rate;
             let recorder = self.recording_path.as_ref().map(|p| {

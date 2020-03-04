@@ -69,10 +69,7 @@ impl AudioOutputDeviceStream {
             )
             .expect("Failed to build CPAL output stream");
 
-        AudioOutputDeviceStream {
-            stream,
-            config,
-        }
+        AudioOutputDeviceStream { stream, config }
     }
 
     pub fn get_config(&self) -> &StreamConfig {
