@@ -20,8 +20,9 @@ use tokio::{
     task,
 };
 
-// TODO: if we continue playing tracks in separate threads, we will need a correct cancelling
-// mechanism, since they all fight over the SIGINT handler right now
+// TODO: if we continue playing tracks in separate threads
+// - need a correct cancelling mechanism, since they all fight over the SIGINT handler right now
+// - need cross-task synchonization to prevent clock drift
 pub async fn play_all_midi_tracks(midi_bytes: MidiBytes) {
     let smf = midi_bytes.parse();
 
