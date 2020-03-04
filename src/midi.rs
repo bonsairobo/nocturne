@@ -195,8 +195,6 @@ pub struct MidiBytes {
     bytes: Vec<u8>,
 }
 
-impl Send for MidiBytes {}
-
 impl MidiBytes {
     pub fn read_file(midi_file_path: &PathBuf) -> Self {
         let mut bytes = Vec::new();
@@ -210,8 +208,4 @@ impl MidiBytes {
     pub fn parse<'a>(&'a self) -> Smf<'a> {
         Smf::parse(&self.bytes).unwrap()
     }
-}
-
-pub fn num_tracks_in_midi_file(midi_bytes: &MidiBytes) -> usize {
-    midi_bytes.parse().tracks.len()
 }

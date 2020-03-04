@@ -10,6 +10,7 @@ use cpal::SampleRate;
 use futures::future::join_all;
 use log::{debug, info};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use tokio::{
     select, signal,
     stream::{Stream, StreamExt},
@@ -21,16 +22,42 @@ pub async fn play_all_midi_tracks(midi_bytes: MidiBytes) {
     let smf = midi_bytes.parse();
 
     let mut handles = Vec::new();
-    for track in smf.tracks.iter() {
+    for (i, _track) in smf.tracks.iter().enumerate() {
+        // HACK: some of the test tracks are just sitting on one note
+        if i > 4 {
+            break;
+        }
         let bytes_copy = midi_bytes.clone();
         handles.push(task::spawn(async move {
-            let midi_input = MidiTrackInputStream::start(bytes_copy, 3);
+            let midi_input = MidiTrackInputStream::start(bytes_copy, i);
             let instrument = Instrument::new(None);
             instrument.play_midi(midi_input).await;
         }));
     }
-    join_all(handles);
+    join_all(handles).await;
 }
+
+/// Need to synchronize access to the stream, since it is !Send, and we want to use it across
+/// awaits (threads).
+struct SafeAudioStream {
+    stream: Arc<Mutex<AudioOutputDeviceStream>>
+}
+
+impl SafeAudioStream {
+    fn new(stream: AudioOutputDeviceStream) -> Self {
+        SafeAudioStream { stream: Arc::new(Mutex::new(stream)) }
+    }
+
+    fn play(&self) {
+        self.stream.lock().unwrap().play();
+    }
+
+    fn pause(&self) {
+        self.stream.lock().unwrap().pause();
+    }
+}
+
+unsafe impl Send for SafeAudioStream {}
 
 /// Accepts MIDI input via channels and controls a synthesizer, sending audio samples to an output
 /// device.
@@ -53,13 +80,15 @@ impl Instrument {
         M: MidiInputStream<MessageStream = S>,
         S: Stream<Item = RawMidiMessage> + Unpin,
     {
-        let recorder = {
-            // Audio output can have many subscribers.
-            let (frame_tx, device_frame_rx) = broadcast::channel(CHANNEL_MAX_BUFFER);
-            let (buffer_request_tx, mut buffer_request_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
+        println!("Playing MIDI track");
 
-            // Create the instrument components: input streams --> synth --> output streams.
-            let mut audio_output_stream = AudioOutputDeviceStream::connect_default(
+        // Audio output can have many subscribers.
+        let (frame_tx, device_frame_rx) = broadcast::channel(CHANNEL_MAX_BUFFER);
+        let (buffer_request_tx, mut buffer_request_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
+
+        // Create the instrument components: input streams --> synth --> output streams.
+        let (mut synth, recorder, audio_output_stream, num_channels) = {
+            let audio_output_stream = AudioOutputDeviceStream::connect_default(
                 device_frame_rx, buffer_request_tx
             );
             let num_channels = audio_output_stream.get_config().channels;
@@ -83,30 +112,35 @@ impl Instrument {
                 }
             }
 
-            audio_output_stream.play();
-            loop {
-                select! {
-                    Some(raw_message) = midi_input_stream.get_message_stream().next() => {
-                        synth.handle_midi_message(raw_message);
-                    },
-                    item = buffer_request_rx.recv() => {
-                        item.expect("Couldn't receive buffer request.");
-                        let frame = synth.sample_notes(num_channels as usize);
-                        if frame_tx.send(frame).is_err() {
-                            panic!("Failed to send audio frame");
-                        }
-                    },
-                    item = signal::ctrl_c() => {
-                        item.expect("Couldn't receive cancellation.");
-                        info!("Interrupted instrument");
-                        break;
-                    }
-                };
-            }
-            audio_output_stream.pause();
-
-            recorder
+            (
+                synth,
+                recorder,
+                SafeAudioStream::new(audio_output_stream),
+                num_channels,
+            )
         };
+
+        audio_output_stream.play();
+        loop {
+            select! {
+                Some(raw_message) = midi_input_stream.get_message_stream().next() => {
+                    synth.handle_midi_message(raw_message);
+                },
+                item = buffer_request_rx.recv() => {
+                    item.expect("Couldn't receive buffer request.");
+                    let frame = synth.sample_notes(num_channels as usize);
+                    if frame_tx.send(frame).is_err() {
+                        panic!("Failed to send audio frame");
+                    }
+                },
+                item = signal::ctrl_c() => {
+                    item.expect("Couldn't receive cancellation.");
+                    info!("Interrupted instrument");
+                    break;
+                }
+            };
+        }
+        audio_output_stream.pause();
 
         // Tear down.
         debug!("Waiting for MIDI input stream tear down");

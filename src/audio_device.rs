@@ -1,4 +1,4 @@
-use crate::{AudioFrame, CHANNEL_MAX_BUFFER, FRAME_SIZE};
+use crate::{AudioFrame, FRAME_SIZE};
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
@@ -39,7 +39,7 @@ impl AudioOutputDeviceStream {
     ) -> AudioOutputDeviceStream {
         let (device, config) = default_output_device();
 
-        Self::connect_device(device, config, frame_rx)
+        Self::connect_device(device, config, frame_rx, buffer_request_tx)
     }
 
     pub fn connect_device(
@@ -77,10 +77,6 @@ impl AudioOutputDeviceStream {
 
     pub fn get_config(&self) -> &StreamConfig {
         &self.config
-    }
-
-    pub fn get_buffer_request_rx(&mut self) -> &mut mpsc::Receiver<()> {
-        &mut self.buffer_request_rx
     }
 
     pub fn play(&self) {
