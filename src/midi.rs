@@ -190,9 +190,12 @@ impl MidiInputStream for MidiTrackInputStream {
     }
 }
 
+#[derive(Clone)]
 pub struct MidiBytes {
     bytes: Vec<u8>,
 }
+
+impl Send for MidiBytes {}
 
 impl MidiBytes {
     pub fn read_file(midi_file_path: &PathBuf) -> Self {

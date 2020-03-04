@@ -1,4 +1,4 @@
-use nocturne::{list_midi_input_ports, Instrument, MidiBytes};
+use nocturne::{list_midi_input_ports, play_all_midi_tracks, Instrument, MidiBytes};
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -45,15 +45,14 @@ fn main() {
             let instrument = Instrument::new(recording_path);
 
             // Run the synth.
-            runtime.block_on(async move { instrument.play_midi_device(midi_input_port).await });
+            runtime.block_on(instrument.play_midi_device(midi_input_port));
         }
         Opt::PlayFile {
             midi_path,
             recording_path,
         } => {
-            let instrument = Instrument::new(recording_path);
             let midi_bytes = MidiBytes::read_file(&midi_path);
-            runtime.block_on(async move { instrument.play_midi_file(midi_bytes).await });
+            runtime.block_on(play_all_midi_tracks(midi_bytes));
         }
     }
 }
