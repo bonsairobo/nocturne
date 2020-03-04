@@ -20,13 +20,15 @@ use tokio::{
     task,
 };
 
+// TODO: if we continue playing tracks in separate threads, we will need a correct cancelling
+// mechanism, since they all fight over the SIGINT handler right now
 pub async fn play_all_midi_tracks(midi_bytes: MidiBytes) {
     let smf = midi_bytes.parse();
 
     let mut handles = Vec::new();
     for (i, _track) in smf.tracks.iter().enumerate() {
         // HACK: some of the test tracks are just sitting on one note
-        if i > 4 {
+        if i > 6 {
             break;
         }
         let bytes_copy = midi_bytes.clone();
