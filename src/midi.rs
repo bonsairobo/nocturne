@@ -42,8 +42,8 @@ pub type RawMidiMessage = (u64, [u8; 3]);
 pub trait MidiInputStream {
     type MessageStream: Stream<Item = RawMidiMessage>;
 
-    /// Get the receiver for incoming messages.
-    fn get_message_rx(&mut self) -> &mut Self::MessageStream;
+    /// Get the stream of incoming messages.
+    fn get_message_stream(&mut self) -> &mut Self::MessageStream;
 
     /// Stop and tear down stream. Blocks the current thread.
     fn close(self);
@@ -87,7 +87,7 @@ impl MidiInputDeviceStream {
 impl MidiInputStream for MidiInputDeviceStream {
     type MessageStream = mpsc::Receiver<RawMidiMessage>;
 
-    fn get_message_rx(&mut self) -> &mut mpsc::Receiver<RawMidiMessage> {
+    fn get_message_stream(&mut self) -> &mut mpsc::Receiver<RawMidiMessage> {
         &mut self.message_rx
     }
 
@@ -183,7 +183,7 @@ async fn quantize_midi_track_task(
 impl MidiInputStream for MidiTrackInputStream {
     type MessageStream = mpsc::Receiver<RawMidiMessage>;
 
-    fn get_message_rx(&mut self) -> &mut mpsc::Receiver<RawMidiMessage> {
+    fn get_message_stream(&mut self) -> &mut mpsc::Receiver<RawMidiMessage> {
         &mut self.message_rx
     }
 

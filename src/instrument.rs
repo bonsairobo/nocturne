@@ -78,7 +78,7 @@ impl Instrument {
         audio_output_stream.play();
         loop {
             select! {
-                Some(raw_message) = midi_input_stream.get_message_rx().next() => {
+                Some(raw_message) = midi_input_stream.get_message_stream().next() => {
                     synth.handle_midi_message(raw_message);
                 },
                 item = audio_output_stream.get_buffer_request_rx().recv() => {
