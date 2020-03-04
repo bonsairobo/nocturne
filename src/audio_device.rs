@@ -5,10 +5,9 @@ use cpal::{
     Host, StreamConfig,
 };
 use log::{info, trace, warn};
-use tokio::sync::mpsc::{
-    self,
-    error::{TryRecvError, TrySendError},
-    Receiver, Sender,
+use tokio::sync::{
+    broadcast::{self, TryRecvError},
+    mpsc::{self, error::TrySendError},
 };
 
 pub struct AudioOutputDeviceStream {
@@ -16,10 +15,7 @@ pub struct AudioOutputDeviceStream {
     config: StreamConfig,
 
     /// Receive a message when the device wants us to buffer another frame.
-    buffer_request_rx: Receiver<()>,
-
-    /// Send the audio samples to be played by the device.
-    sample_tx: Sender<AudioFrame>,
+    buffer_request_rx: mpsc::Receiver<()>,
 }
 
 fn default_output_device() -> (<Host as HostTrait>::Device, StreamConfig) {
@@ -40,20 +36,20 @@ fn default_output_device() -> (<Host as HostTrait>::Device, StreamConfig) {
 }
 
 impl AudioOutputDeviceStream {
-    pub fn connect_default() -> AudioOutputDeviceStream {
+    pub fn connect_default(frame_rx: broadcast::Receiver<AudioFrame>) -> AudioOutputDeviceStream {
         let (device, config) = default_output_device();
 
-        Self::connect_device(device, config)
+        Self::connect_device(device, config, frame_rx)
     }
 
     pub fn connect_device(
         device: <Host as HostTrait>::Device,
         config: StreamConfig,
+        mut frame_rx: broadcast::Receiver<AudioFrame>,
     ) -> AudioOutputDeviceStream {
         info!("Creating output device stream with config:\n{:?}", config);
 
         let (mut buffer_request_tx, buffer_request_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
-        let (sample_tx, mut sample_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
         let mut leftover_buffer = LeftoverBuffer::new();
 
         let stream = device
@@ -64,7 +60,7 @@ impl AudioOutputDeviceStream {
                         data,
                         &mut leftover_buffer,
                         &mut buffer_request_tx,
-                        &mut sample_rx,
+                        &mut frame_rx,
                     )
                 },
                 move |err| {
@@ -77,7 +73,6 @@ impl AudioOutputDeviceStream {
             stream,
             config,
             buffer_request_rx,
-            sample_tx,
         }
     }
 
@@ -85,15 +80,8 @@ impl AudioOutputDeviceStream {
         &self.config
     }
 
-    pub fn get_buffer_request_rx(&mut self) -> &mut Receiver<()> {
+    pub fn get_buffer_request_rx(&mut self) -> &mut mpsc::Receiver<()> {
         &mut self.buffer_request_rx
-    }
-
-    pub async fn write_frame(&mut self, frame: AudioFrame) {
-        self.sample_tx
-            .send(frame)
-            .await
-            .unwrap_or_else(|_| panic!("Failed to send frame to output device"));
     }
 
     pub fn play(&self) {
@@ -112,8 +100,8 @@ impl AudioOutputDeviceStream {
 fn service_cpal_output_stream_callback(
     data: &mut [f32],
     leftover_buffer: &mut LeftoverBuffer,
-    buffer_request_tx: &mut Sender<()>,
-    sample_rx: &mut Receiver<AudioFrame>,
+    buffer_request_tx: &mut mpsc::Sender<()>,
+    frame_rx: &mut broadcast::Receiver<AudioFrame>,
 ) {
     // Zero out the buffer for safety.
     let zeroes = vec![0.0; data.len()];
@@ -155,7 +143,7 @@ fn service_cpal_output_stream_callback(
             // since this callback executes in a realtime priority thread. This means the
             // synthesizer thread needs to queue up samples at least as quickly as CPAL can consume
             // them, or else we'll play frames with gaps.
-            match sample_rx.try_recv() {
+            match frame_rx.try_recv() {
                 Ok(samples) => leftover_buffer.overwrite(&samples),
                 Err(TryRecvError::Empty) => {
                     warn!("No frames ready when requested");
@@ -165,6 +153,12 @@ fn service_cpal_output_stream_callback(
                     // All we can really do is break, because this thread is out of our control.
                     warn!("Audio device buffering stream is closed during buffer callback");
                     break;
+                }
+                Err(TryRecvError::Lagged(num_missed_frames)) => {
+                    warn!(
+                        "Device lagged behind audio frame producer by {} frames",
+                        num_missed_frames
+                    );
                 }
             }
         }
