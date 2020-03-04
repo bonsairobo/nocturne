@@ -1,4 +1,4 @@
-use nocturne::{list_midi_input_ports, Instrument};
+use nocturne::{list_midi_input_ports, Instrument, MidiBytes};
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -52,7 +52,8 @@ fn main() {
             recording_path,
         } => {
             let instrument = Instrument::new(recording_path);
-            runtime.block_on(async move { instrument.play_midi_file(midi_path).await });
+            let midi_bytes = MidiBytes::read_file(&midi_path);
+            runtime.block_on(async move { instrument.play_midi_file(midi_bytes).await });
         }
     }
 }

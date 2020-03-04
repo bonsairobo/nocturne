@@ -1,6 +1,6 @@
 use crate::{
     audio_device::AudioOutputDeviceStream,
-    midi::{MidiInputDeviceStream, MidiInputStream, MidiTrackInputStream, RawMidiMessage},
+    midi::{MidiBytes, MidiInputDeviceStream, MidiInputStream, MidiTrackInputStream, RawMidiMessage},
     recording::RecordingOutputStream,
     synthesizer::Synthesizer,
     CHANNEL_MAX_BUFFER,
@@ -31,9 +31,9 @@ impl Instrument {
         self.play_midi(midi_input).await;
     }
 
-    pub async fn play_midi_file(&self, path: PathBuf) {
+    pub async fn play_midi_file(&self, midi_bytes: MidiBytes) {
         // TODO: play all the tracks concurrently
-        let midi_input = MidiTrackInputStream::start(path, 3);
+        let midi_input = MidiTrackInputStream::start(midi_bytes, 3);
         self.play_midi(midi_input).await;
     }
 

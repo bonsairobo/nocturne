@@ -103,12 +103,12 @@ pub struct MidiTrackInputStream {
 }
 
 impl MidiTrackInputStream {
-    pub fn start(midi_file_path: PathBuf, track_num: usize) -> Self {
+    pub fn start(midi_bytes: MidiBytes, track_num: usize) -> Self {
         let (message_tx, message_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
         let (exit_tx, exit_rx) = oneshot::channel();
 
         let join_handle = task::spawn(async move {
-            quantize_midi_track_task(midi_file_path, track_num, message_tx, exit_rx).await
+            quantize_midi_track_task(midi_bytes, track_num, message_tx, exit_rx).await
         });
 
         MidiTrackInputStream {
@@ -120,17 +120,12 @@ impl MidiTrackInputStream {
 }
 
 async fn quantize_midi_track_task(
-    midi_file_path: PathBuf,
+    midi_bytes: MidiBytes,
     track_num: usize,
     mut message_tx: mpsc::Sender<RawMidiMessage>,
     mut exit_rx: oneshot::Receiver<()>,
 ) {
-    let mut bytes = Vec::new();
-    let mut file = fs::File::open(&midi_file_path).unwrap();
-    file.read_to_end(&mut bytes)
-        .expect("Failed to read MIDI file");
-
-    let smf = Smf::parse(&bytes).unwrap();
+    let smf = midi_bytes.parse();
 
     // TODO: configurable/dynamic BPM
     let bpm: Bpm = 120.0;
@@ -193,4 +188,27 @@ impl MidiInputStream for MidiTrackInputStream {
             .expect("Failed to interrupt midi track task");
         block_on(self.join_handle).expect("Failed to join on MIDI track task");
     }
+}
+
+pub struct MidiBytes {
+    bytes: Vec<u8>,
+}
+
+impl MidiBytes {
+    pub fn read_file(midi_file_path: &PathBuf) -> Self {
+        let mut bytes = Vec::new();
+        let mut file = fs::File::open(midi_file_path).unwrap();
+        file.read_to_end(&mut bytes)
+            .expect("Failed to read MIDI file");
+
+        MidiBytes { bytes }
+    }
+
+    pub fn parse<'a>(&'a self) -> Smf<'a> {
+        Smf::parse(&self.bytes).unwrap()
+    }
+}
+
+pub fn num_tracks_in_midi_file(midi_bytes: &MidiBytes) -> usize {
+    midi_bytes.parse().tracks.len()
 }
