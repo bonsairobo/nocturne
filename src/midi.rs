@@ -45,8 +45,7 @@ pub trait MidiInputStream {
     /// Get the receiver for incoming messages.
     fn get_message_rx(&mut self) -> &mut Self::MessageStream;
 
-    /// Stop and tear down stream.
-    /// TODO: not sure how best to do this
+    /// Stop and tear down stream. Blocks the current thread.
     fn close(self);
 }
 
