@@ -1,14 +1,23 @@
-use crossbeam_channel as channel;
-use crossbeam_channel::{Receiver, Sender};
-use log::{info, trace};
+use crate::CHANNEL_MAX_BUFFER;
+
+use futures::executor::block_on;
+use log::{error, info, trace};
 use midly::Smf;
 use pitch_calc::Step;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
-use std::thread;
 use std::time::Duration;
 use time_calc::{Bpm, Ppqn, Ticks};
+use tokio::{
+    stream::Stream,
+    sync::{
+        mpsc,
+        oneshot::{self, error::TryRecvError},
+    },
+    task,
+    time::delay_for,
+};
 
 pub fn get_midi_key_hz(key: wmidi::Note) -> f32 {
     // PERF: compute note frequencies on synth creation.
@@ -31,21 +40,24 @@ pub fn list_midi_input_ports() {
 pub type RawMidiMessage = (u64, [u8; 3]);
 
 pub trait MidiInputStream {
+    type MessageStream: Stream<Item = RawMidiMessage>;
+
     /// Get the receiver for incoming messages.
-    fn get_message_rx(&self) -> &Receiver<RawMidiMessage>;
+    fn get_message_rx(&mut self) -> &mut Self::MessageStream;
 
     /// Stop and tear down stream.
+    /// TODO: not sure how best to do this
     fn close(self);
 }
 
 pub struct MidiInputDeviceStream {
     connection: midir::MidiInputConnection<()>,
-    message_rx: Receiver<RawMidiMessage>,
+    message_rx: mpsc::Receiver<RawMidiMessage>,
 }
 
 impl MidiInputDeviceStream {
     pub fn connect(port: usize) -> Self {
-        let (message_tx, message_rx) = channel::unbounded();
+        let (mut message_tx, message_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
 
         let mut midi_in = midir::MidiInput::new(&format!("nocturne_midi_{}", port))
             .expect("Failed to create MIDI input");
@@ -59,8 +71,7 @@ impl MidiInputDeviceStream {
                 move |timestamp, message, _| {
                     let mut message_copy: [u8; 3] = [0; 3];
                     message_copy.copy_from_slice(&message);
-                    message_tx
-                        .send((timestamp, message_copy))
+                    block_on(message_tx.send((timestamp, message_copy)))
                         .expect("Failed to send MIDI message");
                 },
                 (),
@@ -75,8 +86,10 @@ impl MidiInputDeviceStream {
 }
 
 impl MidiInputStream for MidiInputDeviceStream {
-    fn get_message_rx(&self) -> &Receiver<RawMidiMessage> {
-        &self.message_rx
+    type MessageStream = mpsc::Receiver<RawMidiMessage>;
+
+    fn get_message_rx(&mut self) -> &mut mpsc::Receiver<RawMidiMessage> {
+        &mut self.message_rx
     }
 
     fn close(self) {
@@ -85,31 +98,33 @@ impl MidiInputStream for MidiInputDeviceStream {
 }
 
 pub struct MidiTrackInputStream {
-    message_rx: Receiver<RawMidiMessage>,
-    exit_tx: Sender<()>,
+    message_rx: mpsc::Receiver<RawMidiMessage>,
+    exit_tx: oneshot::Sender<()>,
+    join_handle: task::JoinHandle<()>,
 }
 
 impl MidiTrackInputStream {
     pub fn start(midi_file_path: PathBuf, track_num: usize) -> Self {
-        let (message_tx, message_rx) = channel::unbounded();
-        let (exit_tx, exit_rx) = channel::unbounded();
+        let (message_tx, message_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
+        let (exit_tx, exit_rx) = oneshot::channel();
 
-        thread::spawn(move || {
-            quantize_midi_track_thread(midi_file_path, track_num, message_tx, exit_rx)
+        let join_handle = task::spawn(async move {
+            quantize_midi_track_task(midi_file_path, track_num, message_tx, exit_rx).await
         });
 
         MidiTrackInputStream {
             message_rx,
             exit_tx,
+            join_handle,
         }
     }
 }
 
-fn quantize_midi_track_thread(
+async fn quantize_midi_track_task(
     midi_file_path: PathBuf,
     track_num: usize,
-    message_tx: Sender<RawMidiMessage>,
-    exit_rx: Receiver<()>,
+    mut message_tx: mpsc::Sender<RawMidiMessage>,
+    mut exit_rx: oneshot::Receiver<()>,
 ) {
     let mut bytes = Vec::new();
     let mut file = fs::File::open(&midi_file_path).unwrap();
@@ -126,8 +141,13 @@ fn quantize_midi_track_thread(
     };
 
     for event in smf.tracks[track_num].iter() {
-        if exit_rx.try_recv().is_ok() {
-            break;
+        match exit_rx.try_recv() {
+            Err(TryRecvError::Empty) => (),
+            Ok(()) => break,
+            Err(TryRecvError::Closed) => {
+                error!("Cancellation channel to recording task close early");
+                break;
+            }
         }
 
         let midly::Event { delta, kind } = event;
@@ -145,6 +165,7 @@ fn quantize_midi_track_thread(
         raw_message_buf[..message_len].copy_from_slice(&raw_message[..]);
         message_tx
             .send((timestamp, raw_message_buf))
+            .await
             .expect("Failed to send MIDI message");
 
         // Sleep until next event.
@@ -153,20 +174,24 @@ fn quantize_midi_track_thread(
         let mut nanos = (millis * 1_000_000.0).floor() as u64;
         let seconds = nanos / 1_000_000_000;
         nanos -= seconds * 1_000_000;
-        spin_sleep::sleep(Duration::new(seconds as u64, nanos as u32));
+
+        delay_for(Duration::new(seconds as u64, nanos as u32)).await;
     }
 
     info!("Exiting MIDI file playback thread")
 }
 
 impl MidiInputStream for MidiTrackInputStream {
-    fn get_message_rx(&self) -> &Receiver<RawMidiMessage> {
-        &self.message_rx
+    type MessageStream = mpsc::Receiver<RawMidiMessage>;
+
+    fn get_message_rx(&mut self) -> &mut mpsc::Receiver<RawMidiMessage> {
+        &mut self.message_rx
     }
 
     fn close(self) {
         self.exit_tx
             .send(())
-            .expect("Failed to stop midi track thread")
+            .expect("Failed to interrupt midi track task");
+        block_on(self.join_handle).expect("Failed to join on MIDI track task");
     }
 }

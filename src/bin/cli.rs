@@ -1,6 +1,5 @@
 use nocturne::{list_midi_input_ports, Instrument};
 
-use crossbeam_channel as channel;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -30,12 +29,12 @@ fn main() {
 
     let opt = Opt::from_args();
 
-    // Set SIGINT handler.
-    let (exit_tx, exit_rx) = channel::bounded(1);
-    ctrlc::set_handler(move || {
-        exit_tx.send(()).expect("Failed to send exit signal");
-    })
-    .expect("Error setting Ctrl-C handler");
+    let mut runtime = tokio::runtime::Builder::new()
+        .threaded_scheduler()
+        .enable_time()
+        .enable_io()
+        .build()
+        .unwrap();
 
     match opt {
         Opt::ListMidiPorts => list_midi_input_ports(),
@@ -43,15 +42,17 @@ fn main() {
             midi_input_port,
             recording_path,
         } => {
-            let instrument = Instrument::new(exit_rx, recording_path);
-            instrument.play_midi_device(midi_input_port);
+            let instrument = Instrument::new(recording_path);
+
+            // Run the synth.
+            runtime.block_on(async move { instrument.play_midi_device(midi_input_port).await });
         }
         Opt::PlayFile {
             midi_path,
             recording_path,
         } => {
-            let instrument = Instrument::new(exit_rx, recording_path);
-            instrument.play_midi_file(midi_path);
+            let instrument = Instrument::new(recording_path);
+            runtime.block_on(async move { instrument.play_midi_file(midi_path).await });
         }
     }
 }

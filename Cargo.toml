@@ -6,15 +6,15 @@ edition = "2018"
 
 [dependencies]
 cpal = { git = "https://github.com/RustAudio/cpal.git" }
-crossbeam-channel = "*"
 ctrlc = { version = "*", features = ["termination"] }
 env_logger = "*"
+futures = "*"
 hound = "*"
 log = "*"
 midir = "*"
 midly = "*"
 pitch_calc = "*"
-spin_sleep = "*"
 structopt = "*"
 time_calc = "*"
+tokio = { version = "*", features = ["blocking", "macros", "rt-threaded", "sync", "stream", "signal", "time"] }
 wmidi = "*"

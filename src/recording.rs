@@ -1,14 +1,17 @@
-use crate::{AudioFrame, FRAME_SIZE};
+use crate::{AudioFrame, CHANNEL_MAX_BUFFER, FRAME_SIZE};
 
-use crossbeam_channel as channel;
-use crossbeam_channel::{select, Receiver, Sender};
-use log::info;
+use log::{debug, info};
 use std::path::PathBuf;
-use std::thread;
+use tokio::{
+    select,
+    sync::{mpsc::{self, error::SendError}, oneshot},
+    task,
+};
 
 pub struct RecordingOutputStream {
-    sample_tx: Sender<AudioFrame>,
-    exit_tx: Sender<()>,
+    sample_tx: mpsc::Sender<AudioFrame>,
+    exit_tx: oneshot::Sender<()>,
+    join_handle: task::JoinHandle<()>,
 }
 
 impl RecordingOutputStream {
@@ -18,32 +21,45 @@ impl RecordingOutputStream {
             .to_str()
             .expect("Invalid path for recording file.")
             .to_string();
-        let (sample_tx, sample_rx) = channel::unbounded();
-        let (exit_tx, exit_rx) = channel::bounded(1);
-        thread::spawn(move || {
-            buffered_file_writer_thread(path_str, num_channels, sample_hz, &sample_rx, &exit_rx)
+        let (sample_tx, sample_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
+        let (exit_tx, exit_rx) = oneshot::channel();
+        let join_handle = task::spawn(async move {
+            buffered_file_writer_task(path_str, num_channels, sample_hz, sample_rx, exit_rx).await
         });
 
-        RecordingOutputStream { sample_tx, exit_tx }
+        RecordingOutputStream {
+            sample_tx,
+            exit_tx,
+            join_handle,
+        }
     }
 
-    pub fn write_frame(&self, frame: AudioFrame) {
-        self.sample_tx
-            .send(frame)
-            .expect("Failed to send frame to WAV writer");
+    pub async fn write_frame(&mut self, frame: AudioFrame) {
+        match self.sample_tx.send(frame).await {
+            Ok(_) => (),
+            Err(SendError(_)) => panic!("Failed to send audio frame to output device"),
+        }
     }
 
-    pub fn close(&self) {
-        self.exit_tx.send(()).expect("Failed to close WAV writer");
+    pub async fn close(self) {
+        debug!("Sending exit signal to WAV writer task");
+        self.exit_tx
+            .send(())
+            .expect("Failed to send exit signal to WAV writer task");
+        debug!("Sent exit signal to WAV writer task");
+        self.join_handle
+            .await
+            .expect("Failed to join on WAV writer task");
     }
 }
 
-fn buffered_file_writer_thread(
+/// Runs until being told to stop, at which point it flushes outstanding file writes.
+async fn buffered_file_writer_task(
     path: String,
     channels: u16,
     sample_hz: u32,
-    samples_rx: &Receiver<[f32; FRAME_SIZE]>,
-    exit_rx: &Receiver<()>,
+    mut samples_rx: mpsc::Receiver<[f32; FRAME_SIZE]>,
+    mut exit_rx: oneshot::Receiver<()>,
 ) {
     let spec = hound::WavSpec {
         channels,
@@ -55,18 +71,25 @@ fn buffered_file_writer_thread(
 
     loop {
         select! {
-            recv(samples_rx) -> samples => {
-                let samples = samples.expect("Failed to receive samples.");
+            item = &mut exit_rx => {
+                item.expect("Cancellation channel to recording task close early");
+                info!("WAV file writing task interrupted");
+                break;
+            },
+            frame = samples_rx.recv() => {
+                frame.expect("Couldn't receive frame from instrument.");
+                let samples = frame.expect("Failed to receive samples.");
                 let amplitude = i16::max_value() as f32;
                 for s in samples.iter() {
+                    // TODO: make async?
                     writer.write_sample((amplitude * s) as i16)
                         .expect("WAV writer failed to write sample.");
                 }
             },
-            recv(exit_rx) -> _ => break,
         }
     }
 
+    // TODO: make async?
     writer.finalize().expect("Failed to finalize sample file.");
     info!("Flushed WAV file buffer.");
 }

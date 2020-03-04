@@ -1,13 +1,15 @@
-use crate::{AudioFrame, FRAME_SIZE};
+use crate::{AudioFrame, CHANNEL_MAX_BUFFER, FRAME_SIZE};
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    Host,
-    StreamConfig,
+    Host, StreamConfig,
 };
-use crossbeam_channel as channel;
-use crossbeam_channel::{Receiver, Sender};
-use log::{info, trace};
+use log::{info, trace, warn};
+use tokio::sync::mpsc::{
+    self,
+    error::{TryRecvError, TrySendError},
+    Receiver, Sender,
+};
 
 pub struct AudioOutputDeviceStream {
     stream: cpal::Stream,
@@ -45,12 +47,13 @@ impl AudioOutputDeviceStream {
     }
 
     pub fn connect_device(
-        device: <Host as HostTrait>::Device, config: StreamConfig
+        device: <Host as HostTrait>::Device,
+        config: StreamConfig,
     ) -> AudioOutputDeviceStream {
         info!("Creating output device stream with config:\n{:?}", config);
 
-        let (buffer_request_tx, buffer_request_rx) = channel::unbounded();
-        let (sample_tx, sample_rx) = channel::unbounded();
+        let (mut buffer_request_tx, buffer_request_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
+        let (sample_tx, mut sample_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
         let mut leftover_buffer = LeftoverBuffer::new();
 
         let stream = device
@@ -60,8 +63,8 @@ impl AudioOutputDeviceStream {
                     service_cpal_output_stream_callback(
                         data,
                         &mut leftover_buffer,
-                        &buffer_request_tx,
-                        &sample_rx,
+                        &mut buffer_request_tx,
+                        &mut sample_rx,
                     )
                 },
                 move |err| {
@@ -82,14 +85,15 @@ impl AudioOutputDeviceStream {
         &self.config
     }
 
-    pub fn get_buffer_request_rx(&self) -> &Receiver<()> {
-        &self.buffer_request_rx
+    pub fn get_buffer_request_rx(&mut self) -> &mut Receiver<()> {
+        &mut self.buffer_request_rx
     }
 
-    pub fn write_frame(&self, frame: AudioFrame) {
+    pub async fn write_frame(&mut self, frame: AudioFrame) {
         self.sample_tx
             .send(frame)
-            .expect("Failed to send frame to output device");
+            .await
+            .unwrap_or_else(|_| panic!("Failed to send frame to output device"));
     }
 
     pub fn play(&self) {
@@ -108,8 +112,8 @@ impl AudioOutputDeviceStream {
 fn service_cpal_output_stream_callback(
     data: &mut [f32],
     leftover_buffer: &mut LeftoverBuffer,
-    buffer_request_tx: &Sender<()>,
-    sample_rx: &Receiver<AudioFrame>,
+    buffer_request_tx: &mut Sender<()>,
+    sample_rx: &mut Receiver<AudioFrame>,
 ) {
     // Zero out the buffer for safety.
     let zeroes = vec![0.0; data.len()];
@@ -117,13 +121,35 @@ fn service_cpal_output_stream_callback(
 
     let items_requested = data.len();
     let mut items_fulfilled = 0;
+    let mut buffer_request_debt = 0;
     while items_fulfilled < items_requested {
+        // Try to pay down our buffer request debt.
+        if buffer_request_debt > 0 {
+            match buffer_request_tx.try_send(()) {
+                Ok(_) => {
+                    buffer_request_debt -= 1;
+                }
+                Err(TrySendError::Full(_)) => (),
+                Err(TrySendError::Closed(_)) => {
+                    panic!("Audio device buffer request stream was closed");
+                }
+            }
+        }
+
         if leftover_buffer.is_empty() {
             // Tell the synthesizer that we're buffering so it knows to queue up more samples. This
-            // shouldn't block.
-            buffer_request_tx
-                .send(())
-                .expect("Failed to send buffer request");
+            // shouldn't block, so instead we accumulate a retry count and pay it down later.
+            match buffer_request_tx.try_send(()) {
+                Ok(_) => (),
+                Err(TrySendError::Full(_)) => {
+                    buffer_request_debt += 1;
+                }
+                Err(TrySendError::Closed(_)) => {
+                    // All we can really do is break, because this thread is out of our control.
+                    warn!("Audio device buffer request stream is closed during buffer callback");
+                    break;
+                }
+            }
 
             // Replenish our buffer. We shouldn't block to receive samples from the synthesizer
             // since this callback executes in a realtime priority thread. This means the
@@ -131,7 +157,15 @@ fn service_cpal_output_stream_callback(
             // them, or else we'll play frames with gaps.
             match sample_rx.try_recv() {
                 Ok(samples) => leftover_buffer.overwrite(&samples),
-                Err(_) => break,
+                Err(TryRecvError::Empty) => {
+                    warn!("No frames ready when requested");
+                    break;
+                }
+                Err(TryRecvError::Closed) => {
+                    // All we can really do is break, because this thread is out of our control.
+                    warn!("Audio device buffering stream is closed during buffer callback");
+                    break;
+                }
             }
         }
 
