@@ -1,6 +1,6 @@
 use crate::{AudioFrame, CHANNEL_MAX_BUFFER, FRAME_SIZE};
 
-use log::{debug, info};
+use log::info;
 use std::path::PathBuf;
 use tokio::{
     select,
@@ -42,11 +42,9 @@ impl RecordingOutputStream {
     }
 
     pub async fn close(self) {
-        debug!("Sending exit signal to WAV writer task");
         self.exit_tx
             .send(())
             .expect("Failed to send exit signal to WAV writer task");
-        debug!("Sent exit signal to WAV writer task");
         self.join_handle
             .await
             .expect("Failed to join on WAV writer task");
