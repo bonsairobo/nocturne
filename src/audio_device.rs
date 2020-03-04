@@ -13,9 +13,6 @@ use tokio::sync::{
 pub struct AudioOutputDeviceStream {
     stream: cpal::Stream,
     config: StreamConfig,
-
-    /// Receive a message when the device wants us to buffer another frame.
-    buffer_request_rx: mpsc::Receiver<()>,
 }
 
 fn default_output_device() -> (<Host as HostTrait>::Device, StreamConfig) {
@@ -36,7 +33,10 @@ fn default_output_device() -> (<Host as HostTrait>::Device, StreamConfig) {
 }
 
 impl AudioOutputDeviceStream {
-    pub fn connect_default(frame_rx: broadcast::Receiver<AudioFrame>) -> AudioOutputDeviceStream {
+    pub fn connect_default(
+        frame_rx: broadcast::Receiver<AudioFrame>,
+        buffer_request_tx: mpsc::Sender<()>,
+    ) -> AudioOutputDeviceStream {
         let (device, config) = default_output_device();
 
         Self::connect_device(device, config, frame_rx)
@@ -46,10 +46,10 @@ impl AudioOutputDeviceStream {
         device: <Host as HostTrait>::Device,
         config: StreamConfig,
         mut frame_rx: broadcast::Receiver<AudioFrame>,
+        mut buffer_request_tx: mpsc::Sender<()>,
     ) -> AudioOutputDeviceStream {
         info!("Creating output device stream with config:\n{:?}", config);
 
-        let (mut buffer_request_tx, buffer_request_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
         let mut leftover_buffer = LeftoverBuffer::new();
 
         let stream = device
@@ -72,7 +72,6 @@ impl AudioOutputDeviceStream {
         AudioOutputDeviceStream {
             stream,
             config,
-            buffer_request_rx,
         }
     }
 

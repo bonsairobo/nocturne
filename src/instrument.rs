@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use tokio::{
     select, signal,
     stream::{Stream, StreamExt},
-    sync::broadcast,
+    sync::{broadcast, mpsc},
     task,
 };
 
@@ -53,14 +53,15 @@ impl Instrument {
         M: MidiInputStream<MessageStream = S>,
         S: Stream<Item = RawMidiMessage> + Unpin,
     {
-        // Make sure audio_output_stream (!Send) doesn't live after the await on recorder. This is
-        // neessary for play_midi to be Send.
         let recorder = {
             // Audio output can have many subscribers.
             let (frame_tx, device_frame_rx) = broadcast::channel(CHANNEL_MAX_BUFFER);
+            let (buffer_request_tx, mut buffer_request_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
 
             // Create the instrument components: input streams --> synth --> output streams.
-            let mut audio_output_stream = AudioOutputDeviceStream::connect_default(device_frame_rx);
+            let mut audio_output_stream = AudioOutputDeviceStream::connect_default(
+                device_frame_rx, buffer_request_tx
+            );
             let num_channels = audio_output_stream.get_config().channels;
             let SampleRate(sample_hz) = audio_output_stream.get_config().sample_rate;
             let recorder = self.recording_path.as_ref().map(|p| {
@@ -88,7 +89,7 @@ impl Instrument {
                     Some(raw_message) = midi_input_stream.get_message_stream().next() => {
                         synth.handle_midi_message(raw_message);
                     },
-                    item = audio_output_stream.get_buffer_request_rx().recv() => {
+                    item = buffer_request_rx.recv() => {
                         item.expect("Couldn't receive buffer request.");
                         let frame = synth.sample_notes(num_channels as usize);
                         if frame_tx.send(frame).is_err() {
@@ -106,7 +107,6 @@ impl Instrument {
 
             recorder
         };
-
 
         // Tear down.
         debug!("Waiting for MIDI input stream tear down");
