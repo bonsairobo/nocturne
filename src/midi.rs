@@ -81,7 +81,7 @@ impl MidiBytes {
         MidiBytes { bytes }
     }
 
-    pub fn parse<'a>(&'a self) -> Smf<'a> {
+    pub fn parse(&self) -> Smf<'_> {
         Smf::parse(&self.bytes).unwrap()
     }
 }
@@ -98,7 +98,7 @@ where
     let smf = midi_bytes.parse();
 
     // TODO: configurable/dynamic BPM
-    let bpm: Bpm = 120.0;
+    let bpm: Bpm = 200.0;
     let ppqn = match smf.header.timing {
         midly::Timing::Metrical(m) => m.as_int() as Ppqn,
         midly::Timing::Timecode(_, _) => panic!("WTF is a timecode"),
@@ -170,25 +170,35 @@ where
     info!("Exiting MIDI file playback thread")
 }
 
+fn convert_event_to_raw_message(event: &midly::Event<'_>) -> Option<[u8; 3]> {
+    let mut raw_message = Vec::with_capacity(3);
+    event.kind.write(&mut None, &mut raw_message)
+        .expect("Failed to serialize MIDI message");
+    let message_len = raw_message.len();
+
+    if message_len <= 3 {
+        let mut raw_message_buf = [0u8; 3];
+        raw_message_buf[..message_len].copy_from_slice(&raw_message[..]);
+
+        Some(raw_message_buf)
+    } else {
+        // HACK: ignore certain events
+        trace!("Ignoring {}-byte event {:?}", message_len, event.kind);
+
+        None
+    }
+}
+
 async fn send_event_to_track(
     timestamp: u64,
     event: &midly::Event<'_>,
     message_tx: &mut mpsc::Sender<RawMidiMessage>,
 ) {
     // Send one event to the corresponding track receiver.
-    let mut raw_message = Vec::with_capacity(3);
-    event.kind.write(&mut None, &mut raw_message)
-        .expect("Failed to serialize MIDI message");
-    let mut raw_message_buf = [0u8; 3];
-    let message_len = raw_message.len();
-    if message_len <= 3 {
-        raw_message_buf[..message_len].copy_from_slice(&raw_message[..]);
+    if let Some(raw_message) = convert_event_to_raw_message(event) {
         message_tx
-            .send((timestamp, raw_message_buf))
+            .send((timestamp, raw_message))
             .await
             .expect("Failed to send MIDI message");
-    } else {
-        // HACK: ignore certain events
-        trace!("Ignoring {}-byte event {:?}", message_len, event.kind);
     }
 }

@@ -48,7 +48,7 @@ impl Synthesizer {
     }
 
     pub fn sample_notes(&mut self, num_channels: usize) -> AudioFrame {
-        let oscillator = &wave_table::get_sawtooth_wave();
+        let oscillator = &wave_table::get_sine_wave();
         let mut remove_keys = vec![];
         let mut frame = [0.0; FRAME_SIZE];
         let samples_per_frame = FRAME_SIZE / num_channels;
@@ -107,7 +107,7 @@ struct SynthNote {
 impl SynthNote {
     fn amplitude(&self) -> f32 {
         // BUG: there is some artifacting on the attack/release of notes, likely caused here
-        0.2 * self.velocity
+        0.2 * self.decay_factor * self.velocity
     }
 
     fn sample_table(&mut self, table: &[f32]) -> f32 {

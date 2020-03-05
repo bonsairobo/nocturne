@@ -41,7 +41,7 @@ fn main() {
 
     let opt = Opt::from_args();
     match opt {
-        Opt::ListMidiPorts => { list_midi_input_ports(); return },
+        Opt::ListMidiPorts => { list_midi_input_ports(); },
         Opt::PlayDevice {
             midi_input_port,
             recording_path,
