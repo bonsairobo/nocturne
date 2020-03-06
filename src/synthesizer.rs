@@ -75,7 +75,7 @@ impl Synthesizer {
 
         for (key, note) in self.notes_playing.iter_mut() {
             note.update_after_sample();
-            if note.done_playing() {
+            if note.is_done_playing() {
                 remove_keys.push(*key);
             }
         }
@@ -119,8 +119,7 @@ struct SynthNote {
 
 impl SynthNote {
     fn amplitude(&self) -> f32 {
-        // BUG: there is some artifacting on the attack/release of notes, likely caused here
-        0.2 * self.online_decay_factor * self.decay_factor * self.velocity
+        0.2 * self.attack_factor * self.online_decay_factor * self.decay_factor * self.velocity
     }
 
     fn sample_table(&mut self, table: &[f32]) -> f32 {
@@ -133,11 +132,11 @@ impl SynthNote {
             self.decay_factor -= 0.05;
         }
         if self.attack_factor < 1.0 {
-            self.attack_factor += 0.02;
+            self.attack_factor += 0.5;
         }
     }
 
-    fn done_playing(&self) -> bool {
+    fn is_done_playing(&self) -> bool {
         self.decay_factor < 0.05 || self.online_decay_factor < 0.05
     }
 }
