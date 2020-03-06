@@ -93,7 +93,7 @@ impl Synthesizer {
             SynthNote {
                 table_index: WaveTableIndex::from_hz(self.sample_hz, get_midi_key_hz(key)),
                 stop_requested: false,
-                decay_factor: 1.0,
+                off_decay_factor: 1.0,
                 online_decay_factor: 1.0,
                 attack_factor: 0.0,
                 velocity: u8::from(velocity) as f32 / 100.0,
@@ -111,7 +111,7 @@ impl Synthesizer {
 struct SynthNote {
     table_index: WaveTableIndex,
     attack_factor: f32,
-    decay_factor: f32,
+    off_decay_factor: f32,
     online_decay_factor: f32,
     velocity: f32,
     stop_requested: bool,
@@ -119,7 +119,7 @@ struct SynthNote {
 
 impl SynthNote {
     fn amplitude(&self) -> f32 {
-        0.2 * self.attack_factor * self.online_decay_factor * self.decay_factor * self.velocity
+        0.2 * self.attack_factor * self.online_decay_factor * self.off_decay_factor * self.velocity
     }
 
     fn sample_table(&mut self, table: &[f32]) -> f32 {
@@ -129,7 +129,7 @@ impl SynthNote {
     fn update_after_sample(&mut self) {
         self.online_decay_factor -= 0.005;
         if self.stop_requested {
-            self.decay_factor -= 0.05;
+            self.off_decay_factor -= 0.05;
         }
         if self.attack_factor < 1.0 {
             self.attack_factor += 0.5;
@@ -137,6 +137,6 @@ impl SynthNote {
     }
 
     fn is_done_playing(&self) -> bool {
-        self.decay_factor < 0.05 || self.online_decay_factor < 0.05
+        self.off_decay_factor < 0.05 || self.online_decay_factor < 0.05
     }
 }
