@@ -48,7 +48,7 @@ impl Synthesizer {
             other => {
                 trace!("unsupported MIDI message = {:?}", other);
                 self.notes_playing = HashMap::new();
-            },
+            }
         }
     }
 

@@ -1,16 +1,18 @@
 use crate::{
     instrument::play_midi,
     midi::{quantize_midi_tracks, MidiBytes},
-    CHANNEL_MAX_BUFFER
+    CHANNEL_MAX_BUFFER,
 };
 
 use futures::future::join_all;
 use log::debug;
-use tokio::{stream::StreamExt, sync::{broadcast, mpsc}, task};
+use tokio::{
+    stream::StreamExt,
+    sync::{broadcast, mpsc},
+    task,
+};
 
-pub async fn play_all_midi_tracks(
-    midi_bytes: MidiBytes, cancel_tx: &broadcast::Sender<()>
-) {
+pub async fn play_all_midi_tracks(midi_bytes: MidiBytes, cancel_tx: &broadcast::Sender<()>) {
     let smf = midi_bytes.parse();
 
     let mut handles = Vec::with_capacity(smf.tracks.len() + 1);

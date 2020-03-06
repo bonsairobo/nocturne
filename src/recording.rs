@@ -4,7 +4,10 @@ use log::info;
 use std::path::PathBuf;
 use tokio::{
     select,
-    sync::{broadcast::{self, RecvError}, oneshot},
+    sync::{
+        broadcast::{self, RecvError},
+        oneshot,
+    },
     task,
 };
 

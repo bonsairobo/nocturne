@@ -9,7 +9,12 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::time::Duration;
 use time_calc::{Bpm, Ppqn, Ticks};
-use tokio::{select, stream::{Stream, StreamExt}, sync::mpsc, time::delay_for};
+use tokio::{
+    select,
+    stream::{Stream, StreamExt},
+    sync::mpsc,
+    time::delay_for,
+};
 
 pub fn get_midi_key_hz(key: wmidi::Note) -> f32 {
     // PERF: compute note frequencies on synth creation.
@@ -91,8 +96,7 @@ pub async fn quantize_midi_tracks<C>(
     midi_bytes: MidiBytes,
     mut track_message_txs: Vec<mpsc::Sender<RawMidiMessage>>,
     mut cancel_stream: C,
-)
-where
+) where
     C: Stream<Item = ()> + Unpin,
 {
     let smf = midi_bytes.parse();
@@ -123,7 +127,8 @@ where
                 this_t as u64,
                 &this_event,
                 &mut track_message_txs[this_track],
-            ).await;
+            )
+            .await;
 
             // We'll end iteration if the next event does not start at the same time.
             delta_t = next_t - this_t;
@@ -142,8 +147,11 @@ where
     // Send the last event.
     let (this_t, this_track, this_event) = all_events[i];
     send_event_to_track(
-        this_t as u64, this_event, &mut track_message_txs[this_track]
-    ).await;
+        this_t as u64,
+        this_event,
+        &mut track_message_txs[this_track],
+    )
+    .await;
 
     info!("Exiting MIDI file playback thread")
 }
@@ -175,7 +183,9 @@ fn single_timeline_of_events<'a>(smf: &'a Smf<'a>) -> Vec<(i64, usize, &'a midly
 
 fn convert_event_to_raw_message(event: &midly::Event<'_>) -> Option<[u8; 3]> {
     let mut raw_message = Vec::with_capacity(3);
-    event.kind.write(&mut None, &mut raw_message)
+    event
+        .kind
+        .write(&mut None, &mut raw_message)
         .expect("Failed to serialize MIDI message");
     let message_len = raw_message.len();
 

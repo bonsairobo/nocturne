@@ -44,8 +44,7 @@ pub async fn play_midi_device<C>(
     midi_input_port: usize,
     cancel_stream: C,
     recording_path: Option<PathBuf>,
-)
-where
+) where
     C: Stream<Item = ()> + Unpin,
 {
     let midi_input = MidiInputDeviceStream::connect(midi_input_port);
@@ -57,8 +56,7 @@ pub async fn play_midi<S, C>(
     mut midi_input_stream: S,
     mut cancel_stream: C,
     recording_path: Option<PathBuf>,
-)
-where
+) where
     S: Stream<Item = RawMidiMessage> + Unpin,
     C: Stream<Item = ()> + Unpin,
 {

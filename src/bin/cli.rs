@@ -1,6 +1,4 @@
-use nocturne::{
-    list_midi_input_ports, play_midi_device, play_all_midi_tracks, MidiBytes
-};
+use nocturne::{list_midi_input_ports, play_all_midi_tracks, play_midi_device, MidiBytes};
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -40,7 +38,9 @@ fn main() {
 
     let opt = Opt::from_args();
     match opt {
-        Opt::ListMidiPorts => { list_midi_input_ports(); },
+        Opt::ListMidiPorts => {
+            list_midi_input_ports();
+        }
         Opt::PlayDevice {
             midi_input_port,
             recording_path,
@@ -52,7 +52,7 @@ fn main() {
                     _ = signal::ctrl_c() => { let _ = cancel_tx.send(()); },
                 }
             })
-        },
+        }
         Opt::PlayFile {
             midi_path,
             recording_path, // TODO: support recording (requires mixing)
