@@ -45,8 +45,10 @@ impl Synthesizer {
                 self.stop_key(key);
             }
             MidiMessage::TimingClock => (),
-            MidiMessage::ActiveSensing => (),
-            other => trace!("unsupported MIDI message = {:?}", other),
+            other => {
+                trace!("unsupported MIDI message = {:?}", other);
+                self.notes_playing = HashMap::new();
+            },
         }
     }
 
