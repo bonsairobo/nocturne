@@ -4,7 +4,7 @@ use log::info;
 use std::path::PathBuf;
 use tokio::{
     select,
-    sync::{broadcast, oneshot},
+    sync::{broadcast::{self, RecvError}, oneshot},
     task,
 };
 
@@ -70,12 +70,17 @@ async fn buffered_file_writer_task(
                 break;
             },
             frame = frame_rx.recv() => {
-                let samples = frame.expect("Failed to receive samples.");
-                let amplitude = i16::max_value() as f32;
-                for s in samples.iter() {
-                    // TODO: make async?
-                    writer.write_sample((amplitude * s) as i16)
-                        .expect("WAV writer failed to write sample.");
+                match frame {
+                    Ok(samples) => {
+                        let amplitude = i16::max_value() as f32;
+                        for s in samples.iter() {
+                            // TODO: make async?
+                            writer.write_sample((amplitude * s) as i16)
+                                .expect("WAV writer failed to write sample.");
+                        }
+                    }
+                    Err(RecvError::Closed) => break,
+                    Err(RecvError::Lagged(_)) => (),
                 }
             },
         }

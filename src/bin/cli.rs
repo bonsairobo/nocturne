@@ -4,7 +4,7 @@ use nocturne::{
 
 use std::path::PathBuf;
 use structopt::StructOpt;
-use tokio::{stream::StreamExt, sync::broadcast};
+use tokio::{select, signal, stream::StreamExt, sync::broadcast};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "cli")]
@@ -47,17 +47,23 @@ fn main() {
             recording_path,
         } => {
             let cancel_rx = cancel_tx.subscribe().map(|_| ());
-            runtime.block_on(play_midi_device(
-                midi_input_port,
-                cancel_rx,
-                recording_path,
-            ));
+            runtime.block_on(async move {
+                select! {
+                    _ = play_midi_device(midi_input_port, cancel_rx, recording_path) => (),
+                    _ = signal::ctrl_c() => { let _ = cancel_tx.send(()); },
+                }
+            })
         },
         Opt::PlayFile {
             midi_path,
             recording_path, // TODO: support recording (requires mixing)
         } => {
-            runtime.block_on(play_all_midi_tracks(MidiBytes::read_file(&midi_path), &cancel_tx));
+            runtime.block_on(async move {
+                select! {
+                    _ = play_all_midi_tracks(MidiBytes::read_file(&midi_path), &cancel_tx) => (),
+                    _ = signal::ctrl_c() => { let _ = cancel_tx.send(()); },
+                }
+            });
         }
     }
 }

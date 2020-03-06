@@ -53,8 +53,7 @@ impl Synthesizer {
     }
 
     pub fn sample_notes(&mut self, num_channels: usize) -> AudioFrame {
-        let oscillator = &wave_table::get_sawtooth_wave();
-        let mut remove_keys = vec![];
+        let oscillator = &wave_table::get_triangle_wave();
         let mut frame = [0.0; FRAME_SIZE];
         let samples_per_frame = FRAME_SIZE / num_channels;
         let mut i = 0;
@@ -64,7 +63,6 @@ impl Synthesizer {
                 // TODO: scale down note sample generator instead of clipping
                 mixed_notes_sample += note.sample_table(oscillator).min(1.0);
             }
-
             let filtered_sample = self.filter.apply(mixed_notes_sample);
 
             for _ in 0..num_channels {
@@ -73,13 +71,13 @@ impl Synthesizer {
             }
         }
 
+        let mut remove_keys = vec![];
         for (key, note) in self.notes_playing.iter_mut() {
             note.update_after_sample();
             if note.is_done_playing() {
                 remove_keys.push(*key);
             }
         }
-
         for key in remove_keys {
             self.notes_playing.remove(&key);
         }

@@ -125,8 +125,8 @@ where
     audio_output_stream.pause();
 
     // Tear down.
-    debug!("Waiting for recorder to drain");
     if let Some(r) = recorder {
+        debug!("Waiting for recorder to drain");
         r.close().await;
     }
 }
