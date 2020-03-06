@@ -5,6 +5,7 @@ use crate::{
 };
 
 use futures::future::join_all;
+use log::debug;
 use tokio::{stream::StreamExt, sync::{broadcast, mpsc}, task};
 
 pub async fn play_all_midi_tracks(
@@ -16,18 +17,15 @@ pub async fn play_all_midi_tracks(
 
     // Each track plays an instrument which runs in its own task.
     let mut track_message_txs = Vec::with_capacity(smf.tracks.len());
-    for (i, _track) in smf.tracks.iter().enumerate() {
-        // HACK: some of the test tracks are just sitting on one note
-        if i > 6 {
-            break;
-        }
-
+    for (i, track) in smf.tracks.iter().enumerate() {
         let cancel_rx = cancel_tx.subscribe().map(|_| ());
         let (message_tx, message_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
         handles.push(task::spawn(async move {
             play_midi(message_rx, cancel_rx, None).await;
         }));
         track_message_txs.push(message_tx);
+
+        debug!("Track {} has {} events", i, track.len());
     }
 
     // One task produces the MIDI input streams for all tracks.

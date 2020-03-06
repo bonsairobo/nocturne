@@ -1,4 +1,5 @@
 use crate::{
+    filters::ExponentialSmoothing,
     midi::{get_midi_key_hz, RawMidiMessage},
     wave_table::{self, WaveTableIndex},
     AudioFrame, FRAME_SIZE,
@@ -15,6 +16,7 @@ use wmidi::MidiMessage;
 pub struct Synthesizer {
     sample_hz: f32,
     notes_playing: HashMap<wmidi::Note, SynthNote>,
+    filter: ExponentialSmoothing,
 }
 
 impl Synthesizer {
@@ -22,6 +24,7 @@ impl Synthesizer {
         Self {
             sample_hz,
             notes_playing: HashMap::new(),
+            filter: ExponentialSmoothing::new(0.05),
         }
     }
 
@@ -48,22 +51,28 @@ impl Synthesizer {
     }
 
     pub fn sample_notes(&mut self, num_channels: usize) -> AudioFrame {
-        let oscillator = &wave_table::get_sine_wave();
+        let oscillator = &wave_table::get_sawtooth_wave();
         let mut remove_keys = vec![];
         let mut frame = [0.0; FRAME_SIZE];
         let samples_per_frame = FRAME_SIZE / num_channels;
-        for (key, note) in self.notes_playing.iter_mut() {
-            let mut i = 0;
-            for _ in 0..samples_per_frame {
+        let mut i = 0;
+        for _ in 0..samples_per_frame {
+            let mut mixed_notes_sample = 0.0;
+            for (_, note) in self.notes_playing.iter_mut() {
                 // TODO: scale down note sample generator instead of clipping
-                let sample = note.sample_table(oscillator).min(1.0);
-                for _ in 0..num_channels {
-                    frame[i] += sample;
-                    i += 1;
-                }
+                mixed_notes_sample += note.sample_table(oscillator).min(1.0);
             }
 
-            note.update_after_buffer();
+            let filtered_sample = self.filter.apply(mixed_notes_sample);
+
+            for _ in 0..num_channels {
+                frame[i] = filtered_sample;
+                i += 1;
+            }
+        }
+
+        for (key, note) in self.notes_playing.iter_mut() {
+            note.update_after_sample();
             if note.done_playing() {
                 remove_keys.push(*key);
             }
@@ -114,7 +123,7 @@ impl SynthNote {
         self.amplitude() * self.table_index.sample_table(table)
     }
 
-    fn update_after_buffer(&mut self) {
+    fn update_after_sample(&mut self) {
         if self.stop_requested {
             self.decay_factor -= 0.05;
         }

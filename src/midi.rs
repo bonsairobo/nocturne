@@ -98,7 +98,7 @@ where
     let smf = midi_bytes.parse();
 
     // TODO: configurable/dynamic BPM
-    let bpm: Bpm = 200.0;
+    let bpm: Bpm = 140.0;
     let ppqn = match smf.header.timing {
         midly::Timing::Metrical(m) => m.as_int() as Ppqn,
         midly::Timing::Timecode(_, _) => panic!("WTF is a timecode"),
@@ -157,11 +157,6 @@ where
 fn single_timeline_of_events<'a>(smf: &'a Smf<'a>) -> Vec<(i64, usize, &'a midly::Event<'a>)> {
     let mut all_events = Vec::new();
     for (track_num, track) in smf.tracks.iter().enumerate() {
-        // HACK: some of the test tracks are just sitting on one note
-        if track_num > 6 {
-            break;
-        }
-
         let mut abs_t: i64 = 0;
         for event in track.iter() {
             let delta_t = event.delta;

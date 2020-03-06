@@ -1,5 +1,6 @@
 mod audio_device;
 mod ensemble;
+mod filters;
 mod instrument;
 mod midi;
 mod recording;
