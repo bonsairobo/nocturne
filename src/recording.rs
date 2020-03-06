@@ -64,8 +64,7 @@ async fn buffered_file_writer_task(
 
     loop {
         select! {
-            item = &mut exit_rx => {
-                item.expect("Cancellation channel to recording task close early");
+            _ = &mut exit_rx => {
                 info!("WAV file writing task interrupted");
                 break;
             },

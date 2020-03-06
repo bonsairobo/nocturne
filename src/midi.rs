@@ -133,15 +133,9 @@ where
         }
 
         // Sleep until next event.
-        let delta_ticks = Ticks(delta_t);
-        let millis = delta_ticks.ms(bpm, ppqn);
-        let mut nanos = (millis * 1_000_000.0).floor() as u64;
-        let seconds = nanos / 1_000_000_000;
-        nanos -= seconds * 1_000_000;
-
         select! {
             _ = cancel_stream.next() => break,
-            _ = delay_for(Duration::new(seconds as u64, nanos as u32)) => (),
+            _ = delay_for(ticks_to_duration(bpm, ppqn, delta_t)) => (),
         }
     }
 
@@ -152,6 +146,16 @@ where
     ).await;
 
     info!("Exiting MIDI file playback thread")
+}
+
+fn ticks_to_duration(bpm: Bpm, ppqn: Ppqn, delta_t: i64) -> Duration {
+    let delta_ticks = Ticks(delta_t);
+    let millis = delta_ticks.ms(bpm, ppqn);
+    let mut nanos = (millis * 1_000_000.0).floor() as u64;
+    let seconds = nanos / 1_000_000_000;
+    nanos -= seconds * 1_000_000;
+
+    Duration::new(seconds as u64, nanos as u32)
 }
 
 fn single_timeline_of_events<'a>(smf: &'a Smf<'a>) -> Vec<(i64, usize, &'a midly::Event<'a>)> {
