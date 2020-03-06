@@ -105,28 +105,12 @@ where
     };
 
     // Collapse the events into one queue and sort them by absolute timestamp.
-    let mut all_events = Vec::new();
-    for (track_num, track) in smf.tracks.iter().enumerate() {
-        // HACK: some of the test tracks are just sitting on one note
-        if track_num > 6 {
-            break;
-        }
-
-        let mut abs_t: i64 = 0;
-        for event in track.iter() {
-            let delta_t = event.delta;
-            all_events.push((abs_t, track_num, event));
-            abs_t += delta_t.as_int() as i64;
-        }
-    }
-
+    let all_events = single_timeline_of_events(&smf);
     if all_events.is_empty() {
         return;
     }
 
-    all_events.sort_by(|(t1, _, _), (t2, _, _)| t1.cmp(&t2));
     let num_events = all_events.len();
-
     let mut i = 0;
     while i < num_events - 1 {
         // Send all of the events that happen at the same time.
@@ -168,6 +152,26 @@ where
     ).await;
 
     info!("Exiting MIDI file playback thread")
+}
+
+fn single_timeline_of_events<'a>(smf: &'a Smf<'a>) -> Vec<(i64, usize, &'a midly::Event<'a>)> {
+    let mut all_events = Vec::new();
+    for (track_num, track) in smf.tracks.iter().enumerate() {
+        // HACK: some of the test tracks are just sitting on one note
+        if track_num > 6 {
+            break;
+        }
+
+        let mut abs_t: i64 = 0;
+        for event in track.iter() {
+            let delta_t = event.delta;
+            all_events.push((abs_t, track_num, event));
+            abs_t += delta_t.as_int() as i64;
+        }
+    }
+    all_events.sort_by(|(t1, _, _), (t2, _, _)| t1.cmp(&t2));
+
+    all_events
 }
 
 fn convert_event_to_raw_message(event: &midly::Event<'_>) -> Option<[u8; 3]> {
