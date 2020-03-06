@@ -82,8 +82,8 @@ where
         // Get ahead of the CPAL buffering.
         // The synthesizer thread will attempt to queue samples ahead of the audio output
         // thread. This represents an additional fixed latency of:
-        //     5 buffers * 512 samples per channel * (1 / 44100) seconds = 0.06 seconds
-        const BUFFERS_AHEAD: u32 = 5;
+        //     2 buffers * 512 samples per channel * (1 / 44100) seconds = 0.02 seconds
+        const BUFFERS_AHEAD: u32 = 2;
         for _ in 0..BUFFERS_AHEAD {
             let frame = synth.sample_notes(num_channels as usize);
             if frame_tx.send(frame).is_err() {
