@@ -36,7 +36,6 @@ fn main() {
         .build()
         .unwrap();
 
-    // TODO: figure out how to do cancelling on ctrlc (for clean exit of file writer task)
     let (cancel_tx, _) = broadcast::channel(1);
 
     let opt = Opt::from_args();
