@@ -156,7 +156,7 @@ pub async fn quantize_midi_tracks<C>(
     info!("Exiting MIDI file playback thread")
 }
 
-fn ticks_to_duration(bpm: Bpm, ppqn: Ppqn, delta_t: i64) -> Duration {
+pub fn ticks_to_duration(bpm: Bpm, ppqn: Ppqn, delta_t: i64) -> Duration {
     let delta_ticks = Ticks(delta_t);
     let millis = delta_ticks.ms(bpm, ppqn);
     let mut nanos = (millis * 1_000_000.0).floor() as u64;
@@ -166,7 +166,7 @@ fn ticks_to_duration(bpm: Bpm, ppqn: Ppqn, delta_t: i64) -> Duration {
     Duration::new(seconds as u64, nanos as u32)
 }
 
-fn single_timeline_of_events<'a>(smf: &'a Smf<'a>) -> Vec<(i64, usize, &'a midly::Event<'a>)> {
+pub fn single_timeline_of_events<'a>(smf: &'a Smf<'a>) -> Vec<(i64, usize, &'a midly::Event<'a>)> {
     let mut all_events = Vec::new();
     for (track_num, track) in smf.tracks.iter().enumerate() {
         let mut abs_t: i64 = 0;

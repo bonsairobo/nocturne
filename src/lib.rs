@@ -18,7 +18,8 @@ pub use audio_device::AudioOutputDeviceStream;
 pub use ensemble::play_all_midi_tracks;
 pub use instrument::{play_midi, play_midi_device};
 pub use midi::{
-    list_midi_input_ports, quantize_midi_tracks, MidiBytes, MidiInputDeviceStream, RawMidiMessage,
+    list_midi_input_ports, quantize_midi_tracks, single_timeline_of_events, ticks_to_duration,
+    MidiBytes, MidiInputDeviceStream, RawMidiMessage,
 };
 pub use recording::RecordingOutputStream;
 pub use synthesizer::Synthesizer;
