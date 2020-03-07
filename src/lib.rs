@@ -5,7 +5,7 @@ mod instrument;
 mod midi;
 mod recording;
 mod synthesizer;
-mod wave_table;
+pub mod wave_table;
 
 /// Static sized frames for all internal audio buffering. (External frames are configurable by the
 /// audio devices).
@@ -23,3 +23,4 @@ pub use midi::{
 };
 pub use recording::RecordingOutputStream;
 pub use synthesizer::Synthesizer;
+pub use wave_table::{sawtooth_wave, sine_wave, square_wave, triangle_wave, Wave};

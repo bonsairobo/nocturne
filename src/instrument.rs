@@ -3,6 +3,7 @@ use crate::{
     midi::{MidiInputDeviceStream, RawMidiMessage},
     recording::RecordingOutputStream,
     synthesizer::Synthesizer,
+    wave_table::Wave,
     CHANNEL_MAX_BUFFER,
 };
 
@@ -40,18 +41,20 @@ impl SafeAudioStream {
 
 pub async fn play_midi_device<C>(
     midi_input_port: usize,
+    wave: Wave,
     cancel_stream: C,
     recording_path: Option<PathBuf>,
 ) where
     C: Stream<Item = ()> + Unpin,
 {
     let midi_input = MidiInputDeviceStream::connect(midi_input_port);
-    play_midi(midi_input.message_rx, cancel_stream, recording_path).await;
+    play_midi(midi_input.message_rx, wave, cancel_stream, recording_path).await;
 }
 
 /// Plays the MIDI input on a synth until there is no input left or we are cancelled.
 pub async fn play_midi<S, C>(
     mut midi_input_stream: S,
+    wave: Wave,
     mut cancel_stream: C,
     recording_path: Option<PathBuf>,
 ) where
@@ -64,6 +67,7 @@ pub async fn play_midi<S, C>(
 
     // Create the synth and output stream.
     let (mut synth, recorder, audio_output_stream, num_channels) = {
+        // Unsafe stream needs to stay in this scope to keep this async function Send.
         let audio_output_stream =
             AudioOutputDeviceStream::connect_default(device_frame_rx, buffer_request_tx);
         let &StreamConfig { channels: num_channels, sample_rate: SampleRate(sample_hz) } =
@@ -73,7 +77,7 @@ pub async fn play_midi<S, C>(
 
             RecordingOutputStream::connect(p, num_channels, sample_hz, recorder_frame_rx)
         });
-        let mut synth = Synthesizer::new(sample_hz as f32);
+        let mut synth = Synthesizer::new(sample_hz as f32, wave);
 
         // Get ahead of the CPAL buffering.
         // The synthesizer thread will attempt to queue samples ahead of the audio output

@@ -1,4 +1,6 @@
-use nocturne::{list_midi_input_ports, play_all_midi_tracks, play_midi_device, MidiBytes};
+use nocturne::{
+    list_midi_input_ports, play_all_midi_tracks, play_midi_device, wave_table, MidiBytes
+};
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -48,7 +50,9 @@ fn main() {
             let cancel_rx = cancel_tx.subscribe().map(|_| ());
             runtime.block_on(async move {
                 select! {
-                    _ = play_midi_device(midi_input_port, cancel_rx, recording_path) => (),
+                    _ = play_midi_device(
+                        midi_input_port, wave_table::sawtooth_wave(), cancel_rx, recording_path
+                    ) => (),
                     _ = signal::ctrl_c() => { let _ = cancel_tx.send(()); },
                 }
             })
@@ -57,9 +61,17 @@ fn main() {
             midi_path,
             recording_path, // TODO: support recording (requires mixing)
         } => {
+            let instruments = [
+                wave_table::sawtooth_wave(),
+                wave_table::sine_wave(),
+                wave_table::triangle_wave(),
+                wave_table::square_wave(),
+            ];
             runtime.block_on(async move {
                 select! {
-                    _ = play_all_midi_tracks(MidiBytes::read_file(&midi_path), &cancel_tx) => (),
+                    _ = play_all_midi_tracks(
+                        MidiBytes::read_file(&midi_path), &instruments, &cancel_tx
+                    ) => (),
                     _ = signal::ctrl_c() => { let _ = cancel_tx.send(()); },
                 }
             });

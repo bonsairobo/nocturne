@@ -1,5 +1,5 @@
+use once_cell::sync::OnceCell;
 use std::f32;
-use std::sync::Once;
 
 const WAVE_TABLE_SIZE: usize = 1 << 16;
 
@@ -7,26 +7,22 @@ fn table_sample_conversion_factor(sample_hz: f32) -> f32 {
     WAVE_TABLE_SIZE as f32 / sample_hz
 }
 
-static INIT: Once = Once::new();
-
-static mut SQUARE_WAVE: [f32; WAVE_TABLE_SIZE] = [0.0; WAVE_TABLE_SIZE];
-static mut SAWTOOTH_WAVE: [f32; WAVE_TABLE_SIZE] = [0.0; WAVE_TABLE_SIZE];
-static mut TRIANGLE_WAVE: [f32; WAVE_TABLE_SIZE] = [0.0; WAVE_TABLE_SIZE];
-static mut SINE_WAVE: [f32; WAVE_TABLE_SIZE] = [0.0; WAVE_TABLE_SIZE];
-
 // Wave functions must be defined on the domain [0.0, 1.0], preferably with a codomain of [-1.0,
 // 1.0].
 
-fn init_wave<F>(wave_fn: F, table: &mut [f32])
+fn init_wave<F>(wave_fn: F) -> [f32; WAVE_TABLE_SIZE]
 where
     F: Fn(f32) -> f32,
 {
+    let mut table = [0.0; WAVE_TABLE_SIZE];
     for (i, item) in table.iter_mut().enumerate() {
         *item = wave_fn(i as f32 / WAVE_TABLE_SIZE as f32);
     }
+
+    table
 }
 
-fn square_wave(t: f32) -> f32 {
+fn square_wave_fn(t: f32) -> f32 {
     if t > 0.5 {
         1.0
     } else {
@@ -34,44 +30,42 @@ fn square_wave(t: f32) -> f32 {
     }
 }
 
-fn sawtooth_wave(t: f32) -> f32 {
+fn sawtooth_wave_fn(t: f32) -> f32 {
     2.0 * (t % 1.0) - 1.0
 }
 
-fn triangle_wave(t: f32) -> f32 {
-    2.0 * sawtooth_wave(t).abs() - 1.0
+fn triangle_wave_fn(t: f32) -> f32 {
+    2.0 * sawtooth_wave_fn(t).abs() - 1.0
 }
 
-fn sine_wave(t: f32) -> f32 {
+fn sine_wave_fn(t: f32) -> f32 {
     (2.0 * f32::consts::PI * t).sin()
 }
 
-pub fn get_square_wave() -> [f32; WAVE_TABLE_SIZE] {
-    unsafe {
-        INIT.call_once(|| init_wave(square_wave, &mut SQUARE_WAVE[..]));
-        SQUARE_WAVE
-    }
+pub type Wave = &'static [f32];
+
+pub fn square_wave() -> Wave {
+    static SQUARE_WAVE: OnceCell<[f32; WAVE_TABLE_SIZE]> = OnceCell::new();
+
+    SQUARE_WAVE.get_or_init(|| init_wave(square_wave_fn))
 }
 
-pub fn get_sawtooth_wave() -> [f32; WAVE_TABLE_SIZE] {
-    unsafe {
-        INIT.call_once(|| init_wave(sawtooth_wave, &mut SAWTOOTH_WAVE[..]));
-        SAWTOOTH_WAVE
-    }
+pub fn sawtooth_wave() -> Wave {
+    static SAWTOOTH_WAVE: OnceCell<[f32; WAVE_TABLE_SIZE]> = OnceCell::new();
+
+    SAWTOOTH_WAVE.get_or_init(|| init_wave(sawtooth_wave_fn))
 }
 
-pub fn get_triangle_wave() -> [f32; WAVE_TABLE_SIZE] {
-    unsafe {
-        INIT.call_once(|| init_wave(triangle_wave, &mut TRIANGLE_WAVE[..]));
-        TRIANGLE_WAVE
-    }
+pub fn triangle_wave() -> Wave {
+    static TRIANGLE_WAVE: OnceCell<[f32; WAVE_TABLE_SIZE]> = OnceCell::new();
+
+    TRIANGLE_WAVE.get_or_init(|| init_wave(triangle_wave_fn))
 }
 
-pub fn get_sine_wave() -> [f32; WAVE_TABLE_SIZE] {
-    unsafe {
-        INIT.call_once(|| init_wave(sine_wave, &mut SINE_WAVE[..]));
-        SINE_WAVE
-    }
+pub fn sine_wave() -> Wave {
+    static SINE_WAVE: OnceCell<[f32; WAVE_TABLE_SIZE]> = OnceCell::new();
+
+    SINE_WAVE.get_or_init(|| init_wave(sine_wave_fn))
 }
 
 pub struct WaveTableIndex {

@@ -1,7 +1,7 @@
 use crate::{
     filters::ExponentialSmoothing,
     midi::{get_midi_key_hz, RawMidiMessage},
-    wave_table::{self, WaveTableIndex},
+    wave_table::{Wave, WaveTableIndex},
     AudioFrame, FRAME_SIZE,
 };
 
@@ -17,14 +17,18 @@ pub struct Synthesizer {
     sample_hz: f32,
     notes_playing: HashMap<wmidi::Note, SynthNote>,
     filter: ExponentialSmoothing,
+
+    /// TODO: support multiple wave forms
+    wave: Wave,
 }
 
 impl Synthesizer {
-    pub fn new(sample_hz: f32) -> Self {
+    pub fn new(sample_hz: f32, wave: Wave) -> Self {
         Self {
             sample_hz,
             notes_playing: HashMap::new(),
             filter: ExponentialSmoothing::new(0.05),
+            wave,
         }
     }
 
@@ -37,7 +41,7 @@ impl Synthesizer {
                 if u8::from(velocity) == 0 {
                     self.stop_key(key);
                 } else {
-                    self.start_note(key, velocity);
+                    self.start_note(key, velocity, self.wave);
                 }
             }
             MidiMessage::NoteOff(_, key, _) => {
@@ -53,7 +57,6 @@ impl Synthesizer {
     }
 
     pub fn sample_notes(&mut self, num_channels: usize) -> AudioFrame {
-        let oscillator = &wave_table::get_sine_wave();
         let mut frame = [0.0; FRAME_SIZE];
         let samples_per_frame = FRAME_SIZE / num_channels;
         let mut i = 0;
@@ -61,7 +64,7 @@ impl Synthesizer {
             let mut mixed_notes_sample = 0.0;
             for (_, note) in self.notes_playing.iter_mut() {
                 // TODO: scale down note sample generator instead of clipping
-                mixed_notes_sample += note.sample_table(oscillator).min(1.0);
+                mixed_notes_sample += note.sample_table().min(1.0);
             }
             let filtered_sample = self.filter.apply(mixed_notes_sample);
 
@@ -85,10 +88,11 @@ impl Synthesizer {
         frame
     }
 
-    fn start_note(&mut self, key: wmidi::Note, velocity: wmidi::U7) {
+    fn start_note(&mut self, key: wmidi::Note, velocity: wmidi::U7, wave: Wave) {
         self.notes_playing.insert(
             key,
             SynthNote {
+                wave,
                 table_index: WaveTableIndex::from_hz(self.sample_hz, get_midi_key_hz(key)),
                 stop_requested: false,
                 off_decay_factor: 1.0,
@@ -107,6 +111,7 @@ impl Synthesizer {
 }
 
 struct SynthNote {
+    wave: Wave,
     table_index: WaveTableIndex,
     attack_factor: f32,
     off_decay_factor: f32,
@@ -120,8 +125,8 @@ impl SynthNote {
         0.2 * self.attack_factor * self.online_decay_factor * self.off_decay_factor * self.velocity
     }
 
-    fn sample_table(&mut self, table: &[f32]) -> f32 {
-        self.amplitude() * self.table_index.sample_table(table)
+    fn sample_table(&mut self) -> f32 {
+        self.amplitude() * self.table_index.sample_table(self.wave)
     }
 
     fn update_after_sample(&mut self) {
