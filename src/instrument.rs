@@ -6,7 +6,7 @@ use crate::{
     CHANNEL_MAX_BUFFER,
 };
 
-use cpal::SampleRate;
+use cpal::{SampleRate, StreamConfig};
 use log::{debug, info};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -22,11 +22,11 @@ struct SafeAudioStream {
     stream: Arc<Mutex<AudioOutputDeviceStream>>,
 }
 
+unsafe impl Send for SafeAudioStream {}
+
 impl SafeAudioStream {
     fn new(stream: AudioOutputDeviceStream) -> Self {
-        SafeAudioStream {
-            stream: Arc::new(Mutex::new(stream)),
-        }
+        SafeAudioStream { stream: Arc::new(Mutex::new(stream)) }
     }
 
     fn play(&self) {
@@ -37,8 +37,6 @@ impl SafeAudioStream {
         self.stream.lock().unwrap().pause();
     }
 }
-
-unsafe impl Send for SafeAudioStream {}
 
 pub async fn play_midi_device<C>(
     midi_input_port: usize,
@@ -68,8 +66,8 @@ pub async fn play_midi<S, C>(
     let (mut synth, recorder, audio_output_stream, num_channels) = {
         let audio_output_stream =
             AudioOutputDeviceStream::connect_default(device_frame_rx, buffer_request_tx);
-        let num_channels = audio_output_stream.get_config().channels;
-        let SampleRate(sample_hz) = audio_output_stream.get_config().sample_rate;
+        let &StreamConfig { channels: num_channels, sample_rate: SampleRate(sample_hz) } =
+            audio_output_stream.get_config();
         let recorder = recording_path.as_ref().map(|p| {
             let recorder_frame_rx = frame_tx.subscribe();
 

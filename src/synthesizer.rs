@@ -53,7 +53,7 @@ impl Synthesizer {
     }
 
     pub fn sample_notes(&mut self, num_channels: usize) -> AudioFrame {
-        let oscillator = &wave_table::get_triangle_wave();
+        let oscillator = &wave_table::get_sine_wave();
         let mut frame = [0.0; FRAME_SIZE];
         let samples_per_frame = FRAME_SIZE / num_channels;
         let mut i = 0;
