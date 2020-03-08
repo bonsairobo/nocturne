@@ -44,11 +44,13 @@ pub async fn play_midi_device<C>(
     wave: Wave,
     cancel_stream: C,
     recording_path: Option<PathBuf>,
-) where
+) -> Result<(), midir::ConnectError<midir::MidiInput>>
+where
     C: Stream<Item = ()> + Unpin,
 {
-    let midi_input = MidiInputDeviceStream::connect(midi_input_port);
-    play_midi(midi_input.message_rx, wave, cancel_stream, recording_path).await;
+    let midi_input = MidiInputDeviceStream::connect(midi_input_port)?;
+
+    Ok(play_midi(midi_input.message_rx, wave, cancel_stream, recording_path).await)
 }
 
 /// Plays the MIDI input on a synth until there is no input left or we are cancelled.

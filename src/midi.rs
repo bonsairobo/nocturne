@@ -42,11 +42,11 @@ pub struct MidiInputDeviceStream {
 }
 
 impl MidiInputDeviceStream {
-    pub fn connect(port: usize) -> Self {
+    pub fn connect(port: usize) -> Result<Self, midir::ConnectError<midir::MidiInput>> {
         let (mut message_tx, message_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
 
         let mut midi_in = midir::MidiInput::new(&format!("nocturne_midi_{}", port))
-            .expect("Failed to create MIDI input");
+            .expect("Failed to initialize MidiInput");
         midi_in.ignore(midir::Ignore::None);
 
         // QUESTION: do MIDI messages arrive in timestamp order?
@@ -61,13 +61,12 @@ impl MidiInputDeviceStream {
                         .expect("Failed to send MIDI message");
                 },
                 (),
-            )
-            .expect("Failed to open MIDI input connection.");
+            )?;
 
-        MidiInputDeviceStream {
+        Ok(MidiInputDeviceStream {
             connection,
             message_rx,
-        }
+        })
     }
 }
 

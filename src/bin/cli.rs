@@ -50,9 +50,21 @@ fn main() {
             let cancel_rx = cancel_tx.subscribe().map(|_| ());
             runtime.block_on(async move {
                 select! {
-                    _ = play_midi_device(
-                        midi_input_port, wave_table::sawtooth_wave(), cancel_rx, recording_path
-                    ) => (),
+                    result = play_midi_device(
+                        midi_input_port, wave_table::triangle_wave(), cancel_rx, recording_path
+                    ) => {
+                        match result {
+                            Err(e) => {
+                                println!(
+                                    "Failed to open midi port {}, try the list-midi-ports command: \
+                                     {}",
+                                    midi_input_port,
+                                    e,
+                                );
+                            }
+                            Ok(()) => (),
+                        }
+                    },
                     _ = signal::ctrl_c() => { let _ = cancel_tx.send(()); },
                 }
             })
