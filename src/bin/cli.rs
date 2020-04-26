@@ -36,8 +36,6 @@ fn main() {
         .build()
         .unwrap();
 
-    let (cancel_tx, _) = broadcast::channel(1);
-
     let opt = Opt::from_args();
     match opt {
         Opt::ListMidiPorts => {
@@ -47,11 +45,10 @@ fn main() {
             midi_input_port,
             recording_path,
         } => {
-            let cancel_rx = cancel_tx.subscribe().map(|_| ());
             runtime.block_on(async move {
                 select! {
                     result = play_midi_device(
-                        midi_input_port, wave_table::triangle_wave(), cancel_rx, recording_path
+                        midi_input_port, wave_table::triangle_wave(), recording_path
                     ) => {
                         match result {
                             Err(e) => {
@@ -65,7 +62,7 @@ fn main() {
                             Ok(()) => (),
                         }
                     },
-                    _ = signal::ctrl_c() => { let _ = cancel_tx.send(()); },
+                    _ = signal::ctrl_c() => (),
                 }
             })
         }
@@ -82,9 +79,9 @@ fn main() {
             runtime.block_on(async move {
                 select! {
                     _ = play_all_midi_tracks(
-                        MidiBytes::read_file(&midi_path), &instruments, &cancel_tx
+                        MidiBytes::read_file(&midi_path), &instruments
                     ) => (),
-                    _ = signal::ctrl_c() => { let _ = cancel_tx.send(()); },
+                    _ = signal::ctrl_c() => (),
                 }
             });
         }

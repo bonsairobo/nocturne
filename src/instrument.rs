@@ -39,29 +39,24 @@ impl SafeAudioStream {
     }
 }
 
-pub async fn play_midi_device<C>(
+pub async fn play_midi_device(
     midi_input_port: usize,
     wave: Wave,
-    cancel_stream: C,
     recording_path: Option<PathBuf>,
 ) -> Result<(), midir::ConnectError<midir::MidiInput>>
-where
-    C: Stream<Item = ()> + Unpin,
 {
     let midi_input = MidiInputDeviceStream::connect(midi_input_port)?;
 
-    Ok(play_midi(midi_input.message_rx, wave, cancel_stream, recording_path).await)
+    Ok(play_midi(midi_input.message_rx, wave, recording_path).await)
 }
 
-/// Plays the MIDI input on a synth until there is no input left or we are cancelled.
-pub async fn play_midi<S, C>(
+/// Plays the MIDI input on a synth until there is no input left.
+pub async fn play_midi<S>(
     mut midi_input_stream: S,
     wave: Wave,
-    mut cancel_stream: C,
     recording_path: Option<PathBuf>,
 ) where
     S: Stream<Item = RawMidiMessage> + Unpin,
-    C: Stream<Item = ()> + Unpin,
 {
     // Audio output can have many subscribers.
     let (frame_tx, device_frame_rx) = broadcast::channel(CHANNEL_MAX_BUFFER);
@@ -118,10 +113,6 @@ pub async fn play_midi<S, C>(
                     panic!("Failed to send audio frame");
                 }
             },
-            _ = cancel_stream.next() => {
-                info!("Interrupted instrument");
-                break;
-            }
         };
     }
     audio_output_stream.pause();

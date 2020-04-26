@@ -9,12 +9,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::time::Duration;
 use time_calc::{Bpm, Ppqn, Ticks};
-use tokio::{
-    select,
-    stream::{Stream, StreamExt},
-    sync::mpsc,
-    time::delay_for,
-};
+use tokio::{sync::mpsc, time::delay_for};
 
 pub fn get_midi_key_hz(key: wmidi::Note) -> f32 {
     // PERF: compute note frequencies on synth creation.
@@ -62,6 +57,7 @@ impl MidiInputDeviceStream {
                 },
                 (),
             )?;
+        println!("CONNECTED");
 
         Ok(MidiInputDeviceStream {
             connection,
@@ -91,13 +87,10 @@ impl MidiBytes {
 }
 
 /// Sequences, in real time, every MIDI event for every track in the SMF.
-pub async fn quantize_midi_tracks<C>(
+pub async fn quantize_midi_tracks(
     midi_bytes: MidiBytes,
     mut track_message_txs: Vec<mpsc::Sender<RawMidiMessage>>,
-    mut cancel_stream: C,
-) where
-    C: Stream<Item = ()> + Unpin,
-{
+) {
     let smf = midi_bytes.parse();
 
     // TODO: configurable/dynamic BPM
@@ -137,10 +130,7 @@ pub async fn quantize_midi_tracks<C>(
         }
 
         // Sleep until next event.
-        select! {
-            _ = cancel_stream.next() => break,
-            _ = delay_for(ticks_to_duration(bpm, ppqn, delta_t)) => (),
-        }
+        delay_for(ticks_to_duration(bpm, ppqn, delta_t)).await;
     }
 
     // Send the last event.
