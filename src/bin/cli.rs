@@ -1,10 +1,10 @@
 use nocturne::{
-    list_midi_input_ports, play_all_midi_tracks, play_midi_device, wave_table, MidiBytes
+    list_midi_input_ports, play_all_midi_tracks, play_midi_device, wave_table, MidiBytes,
 };
 
 use std::path::PathBuf;
 use structopt::StructOpt;
-use tokio::{select, signal, stream::StreamExt, sync::broadcast};
+use tokio::{select, signal};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "cli")]
@@ -44,28 +44,26 @@ fn main() {
         Opt::PlayDevice {
             midi_input_port,
             recording_path,
-        } => {
-            runtime.block_on(async move {
-                select! {
-                    result = play_midi_device(
-                        midi_input_port, wave_table::triangle_wave(), recording_path
-                    ) => {
-                        match result {
-                            Err(e) => {
-                                println!(
-                                    "Failed to open midi port {}, try the list-midi-ports command: \
-                                     {}",
-                                    midi_input_port,
-                                    e,
-                                );
-                            }
-                            Ok(()) => (),
+        } => runtime.block_on(async move {
+            select! {
+                result = play_midi_device(
+                    midi_input_port, wave_table::triangle_wave(), recording_path
+                ) => {
+                    match result {
+                        Err(e) => {
+                            println!(
+                                "Failed to open midi port {}, try the list-midi-ports command: \
+                                 {}",
+                                midi_input_port,
+                                e,
+                            );
                         }
-                    },
-                    _ = signal::ctrl_c() => (),
-                }
-            })
-        }
+                        Ok(()) => (),
+                    }
+                },
+                _ = signal::ctrl_c() => (),
+            }
+        }),
         Opt::PlayFile {
             midi_path,
             recording_path, // TODO: support recording (requires mixing)

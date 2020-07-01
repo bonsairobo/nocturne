@@ -8,7 +8,6 @@ use crate::{
 };
 
 use cpal::{SampleRate, StreamConfig};
-use log::{debug, info};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::{
@@ -27,7 +26,9 @@ unsafe impl Send for SafeAudioStream {}
 
 impl SafeAudioStream {
     fn new(stream: AudioOutputDeviceStream) -> Self {
-        SafeAudioStream { stream: Arc::new(Mutex::new(stream)) }
+        SafeAudioStream {
+            stream: Arc::new(Mutex::new(stream)),
+        }
     }
 
     fn play(&self) {
@@ -43,19 +44,15 @@ pub async fn play_midi_device(
     midi_input_port: usize,
     wave: Wave,
     recording_path: Option<PathBuf>,
-) -> Result<(), midir::ConnectError<midir::MidiInput>>
-{
+) -> Result<(), midir::ConnectError<midir::MidiInput>> {
     let midi_input = MidiInputDeviceStream::connect(midi_input_port)?;
 
     Ok(play_midi(midi_input.message_rx, wave, recording_path).await)
 }
 
 /// Plays the MIDI input on a synth until there is no input left.
-pub async fn play_midi<S>(
-    mut midi_input_stream: S,
-    wave: Wave,
-    recording_path: Option<PathBuf>,
-) where
+pub async fn play_midi<S>(mut midi_input_stream: S, wave: Wave, recording_path: Option<PathBuf>)
+where
     S: Stream<Item = RawMidiMessage> + Unpin,
 {
     // Audio output can have many subscribers.
@@ -67,8 +64,10 @@ pub async fn play_midi<S>(
         // Unsafe stream needs to stay in this scope to keep this async function Send.
         let audio_output_stream =
             AudioOutputDeviceStream::connect_default(device_frame_rx, buffer_request_tx);
-        let &StreamConfig { channels: num_channels, sample_rate: SampleRate(sample_hz) } =
-            audio_output_stream.get_config();
+        let &StreamConfig {
+            channels: num_channels,
+            sample_rate: SampleRate(sample_hz),
+        } = audio_output_stream.get_config();
         let recorder = recording_path.as_ref().map(|p| {
             let recorder_frame_rx = frame_tx.subscribe();
 
@@ -119,7 +118,7 @@ pub async fn play_midi<S>(
 
     // Tear down.
     if let Some(r) = recorder {
-        debug!("Waiting for recorder to drain");
+        log::debug!("Waiting for recorder to drain");
         r.close().await;
     }
 }

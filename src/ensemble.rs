@@ -7,16 +7,9 @@ use crate::{
 
 use futures::future::join_all;
 use log::{debug, info};
-use tokio::{
-    stream::StreamExt,
-    sync::{broadcast, mpsc},
-    task,
-};
+use tokio::{sync::mpsc, task};
 
-pub async fn play_all_midi_tracks(
-    midi_bytes: MidiBytes,
-    track_instruments: &[Wave],
-) {
+pub async fn play_all_midi_tracks(midi_bytes: MidiBytes, track_instruments: &[Wave]) {
     let smf = midi_bytes.parse();
 
     let mut handles = Vec::with_capacity(smf.tracks.len() + 1);
@@ -26,7 +19,10 @@ pub async fn play_all_midi_tracks(
     for (track_i, track) in smf.tracks.iter().enumerate() {
         let (message_tx, message_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
         let instrument_i = track_i % track_instruments.len();
-        info!("Starting track {} with instrument {}", track_i, instrument_i);
+        info!(
+            "Starting track {} with instrument {}",
+            track_i, instrument_i
+        );
         let wave = track_instruments[instrument_i];
         handles.push(task::spawn(async move {
             play_midi(message_rx, wave, None).await;

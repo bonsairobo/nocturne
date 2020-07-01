@@ -45,18 +45,17 @@ impl MidiInputDeviceStream {
         midi_in.ignore(midir::Ignore::None);
 
         // QUESTION: do MIDI messages arrive in timestamp order?
-        let connection = midi_in
-            .connect(
-                port,
-                "midi_input_connection",
-                move |timestamp, message, _| {
-                    let mut message_copy: [u8; 3] = [0; 3];
-                    message_copy.copy_from_slice(&message);
-                    block_on(message_tx.send((timestamp, message_copy)))
-                        .expect("Failed to send MIDI message");
-                },
-                (),
-            )?;
+        let connection = midi_in.connect(
+            port,
+            "midi_input_connection",
+            move |timestamp, message, _| {
+                let mut message_copy: [u8; 3] = [0; 3];
+                message_copy.copy_from_slice(&message);
+                block_on(message_tx.send((timestamp, message_copy)))
+                    .expect("Failed to send MIDI message");
+            },
+            (),
+        )?;
         println!("CONNECTED");
 
         Ok(MidiInputDeviceStream {
