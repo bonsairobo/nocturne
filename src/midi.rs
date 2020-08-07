@@ -88,12 +88,11 @@ impl MidiBytes {
 /// Sequences, in real time, every MIDI event for every track in the SMF.
 pub async fn quantize_midi_tracks(
     midi_bytes: MidiBytes,
+    bpm: Bpm,
     mut track_message_txs: Vec<mpsc::Sender<RawMidiMessage>>,
 ) {
     let smf = midi_bytes.parse();
 
-    // TODO: configurable/dynamic BPM
-    let bpm: Bpm = 120.0;
     let ppqn = match smf.header.timing {
         midly::Timing::Metrical(m) => m.as_int() as Ppqn,
         midly::Timing::Timecode(_, _) => panic!("WTF is a timecode"),

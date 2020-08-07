@@ -7,9 +7,10 @@ use crate::{
 
 use futures::future::join_all;
 use log::{debug, info};
+use time_calc::Bpm;
 use tokio::{sync::mpsc, task};
 
-pub async fn play_all_midi_tracks(midi_bytes: MidiBytes, track_instruments: &[Wave]) {
+pub async fn play_all_midi_tracks(midi_bytes: MidiBytes, bpm: Bpm, track_instruments: &[Wave]) {
     let smf = midi_bytes.parse();
 
     let mut handles = Vec::with_capacity(smf.tracks.len() + 1);
@@ -34,7 +35,7 @@ pub async fn play_all_midi_tracks(midi_bytes: MidiBytes, track_instruments: &[Wa
 
     // One task produces the MIDI input streams for all tracks.
     handles.push(task::spawn(async move {
-        quantize_midi_tracks(midi_bytes, track_message_txs).await;
+        quantize_midi_tracks(midi_bytes, bpm, track_message_txs).await;
     }));
 
     join_all(handles).await;

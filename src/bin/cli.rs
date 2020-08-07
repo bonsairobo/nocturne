@@ -4,6 +4,7 @@ use nocturne::{
 
 use std::path::PathBuf;
 use structopt::StructOpt;
+use time_calc::Bpm;
 use tokio::{select, signal};
 
 #[derive(StructOpt, Debug)]
@@ -20,6 +21,9 @@ enum Opt {
     PlayFile {
         #[structopt(short = "m", long = "midi", parse(from_os_str))]
         midi_path: PathBuf,
+
+        #[structopt(short = "b", long = "bpm")]
+        bpm: u32,
 
         #[structopt(short = "r", long = "recording", parse(from_os_str))]
         recording_path: Option<PathBuf>,
@@ -66,6 +70,7 @@ fn main() {
         }),
         Opt::PlayFile {
             midi_path,
+            bpm,
             recording_path, // TODO: support recording (requires mixing)
         } => {
             let instruments = [
@@ -77,7 +82,7 @@ fn main() {
             runtime.block_on(async move {
                 select! {
                     _ = play_all_midi_tracks(
-                        MidiBytes::read_file(&midi_path), &instruments
+                        MidiBytes::read_file(&midi_path), bpm as Bpm, &instruments
                     ) => (),
                     _ = signal::ctrl_c() => (),
                 }
