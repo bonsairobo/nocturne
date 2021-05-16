@@ -55,7 +55,7 @@ impl AudioOutputDeviceStream {
         let stream = device
             .build_output_stream(
                 &config,
-                move |data: &mut [f32]| {
+                move |data: &mut [f32], _cb_info| {
                     service_cpal_output_stream_callback(
                         data,
                         &mut leftover_buffer,
@@ -63,7 +63,7 @@ impl AudioOutputDeviceStream {
                         &mut frame_rx,
                     )
                 },
-                move |err| {
+                move |_err| {
                     // TODO
                 },
             )

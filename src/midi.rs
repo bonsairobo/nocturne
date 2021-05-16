@@ -6,7 +6,7 @@ use midly::Smf;
 use pitch_calc::Step;
 use std::fs;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::Path;
 use std::time::Duration;
 use time_calc::{Bpm, Ppqn, Ticks};
 use tokio::{sync::mpsc, time::delay_for};
@@ -20,11 +20,13 @@ pub fn list_midi_input_ports() {
     let midi_in =
         midir::MidiInput::new("nocturne_midi_temporary").expect("Failed to load MIDI input");
     println!("--- Available MIDI input ports ---");
-    for i in 0..midi_in.port_count() {
+    for (port_number, port) in midi_in.ports().iter().enumerate() {
         println!(
             "{}: {}",
-            i,
-            midi_in.port_name(i).expect("Failed to get MIDI port name")
+            port_number,
+            midi_in
+                .port_name(&port)
+                .expect("Failed to get MIDI port name")
         );
     }
 }
@@ -37,16 +39,18 @@ pub struct MidiInputDeviceStream {
 }
 
 impl MidiInputDeviceStream {
-    pub fn connect(port: usize) -> Result<Self, midir::ConnectError<midir::MidiInput>> {
+    pub fn connect(port_number: usize) -> Result<Self, midir::ConnectError<midir::MidiInput>> {
         let (mut message_tx, message_rx) = mpsc::channel(CHANNEL_MAX_BUFFER);
 
-        let mut midi_in = midir::MidiInput::new(&format!("nocturne_midi_{}", port))
+        let mut midi_in = midir::MidiInput::new(&format!("nocturne_midi_{}", port_number))
             .expect("Failed to initialize MidiInput");
         midi_in.ignore(midir::Ignore::None);
 
+        let ports = midi_in.ports();
+
         // QUESTION: do MIDI messages arrive in timestamp order?
         let connection = midi_in.connect(
-            port,
+            &ports[port_number],
             "midi_input_connection",
             move |timestamp, message, _| {
                 let mut message_copy: [u8; 3] = [0; 3];
@@ -71,7 +75,7 @@ pub struct MidiBytes {
 }
 
 impl MidiBytes {
-    pub fn read_file(midi_file_path: &PathBuf) -> Self {
+    pub fn read_file(midi_file_path: &Path) -> Self {
         let mut bytes = Vec::new();
         let mut file = fs::File::open(midi_file_path).unwrap();
         file.read_to_end(&mut bytes)

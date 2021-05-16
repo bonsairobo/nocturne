@@ -1,7 +1,7 @@
 use crate::AudioFrame;
 
 use log::info;
-use std::path::PathBuf;
+use std::path::Path;
 use tokio::{
     select,
     sync::{
@@ -18,13 +18,12 @@ pub struct RecordingOutputStream {
 
 impl RecordingOutputStream {
     pub fn connect(
-        path: &PathBuf,
+        path: &Path,
         num_channels: u16,
         sample_hz: u32,
         frame_rx: broadcast::Receiver<AudioFrame>,
     ) -> Self {
         let path_str = path
-            .as_path()
             .to_str()
             .expect("Invalid path for recording file.")
             .to_string();

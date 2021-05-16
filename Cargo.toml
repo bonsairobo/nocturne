@@ -5,16 +5,17 @@ authors = ["Duncan <bonsairobo@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-cpal = { git = "https://github.com/RustAudio/cpal.git", rev = "aac04e7263f31274885e0496fb1b2b0dd03c4477" }
-env_logger = "0.7.1"
-futures = "0.3.4"
-hound = "3.4.0"
-log = "0.4.8"
-midir = "0.5.0"
-midly = "0.4.0"
+# cpal = { git = "https://github.com/RustAudio/cpal.git", rev = "aac04e7263f31274885e0496fb1b2b0dd03c4477" }
+cpal = "0.13"
+env_logger = "0.7"
+futures = "0.3"
+hound = "3.4"
+log = "0.4"
+midir = "0.7"
+midly = "0.4"
 once_cell = "*"
-pitch_calc = "0.11.1"
-structopt = "0.3.11"
-time_calc = "0.13.0"
-tokio = { version = "0.2.13", features = ["blocking", "macros", "rt-threaded", "sync", "stream", "signal", "time"] }
-wmidi = "3.1.0"
+pitch_calc = "0.11"
+structopt = "0.3"
+time_calc = "0.13"
+tokio = { version = "0.2", features = ["blocking", "macros", "rt-threaded", "sync", "stream", "signal", "time"] }
+wmidi = "3.1"

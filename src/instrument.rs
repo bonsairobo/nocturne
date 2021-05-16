@@ -47,7 +47,9 @@ pub async fn play_midi_device(
 ) -> Result<(), midir::ConnectError<midir::MidiInput>> {
     let midi_input = MidiInputDeviceStream::connect(midi_input_port)?;
 
-    Ok(play_midi(midi_input.message_rx, wave, recording_path).await)
+    play_midi(midi_input.message_rx, wave, recording_path).await;
+
+    Ok(())
 }
 
 /// Plays the MIDI input on a synth until there is no input left.
@@ -67,6 +69,7 @@ where
         let &StreamConfig {
             channels: num_channels,
             sample_rate: SampleRate(sample_hz),
+            ..
         } = audio_output_stream.get_config();
         let recorder = recording_path.as_ref().map(|p| {
             let recorder_frame_rx = frame_tx.subscribe();
